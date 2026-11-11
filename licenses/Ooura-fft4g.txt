@@ -1,0 +1,16 @@
+Takuya Ooura, General Purpose FFT Package, 2006-12-28.
+https://www.kurims.kyoto-u.ac.jp/~ooura/fft.html
+
+Rocoflex's src/resample44100/ooura_table_f64.rs is a mechanical Rust adaptation
+of fft4g.c from this package. It uses double-precision working storage, packed
+real forward transforms and unscaled inverse transforms. Arithmetic order and
+persistent integer/twiddle workspace follow that implementation. Trigonometric
+services are supplied explicitly by the caller.
+
+The upstream readme.txt copyright notice is reproduced below:
+
+Copyright(C) 1996-2001 Takuya OOURA
+email: ooura@mmm.t.u-tokyo.ac.jp
+download: http://momonga.t.u-tokyo.ac.jp/~ooura/fft.html
+You may use, copy, modify this code for any purpose and
+without fee. You may distribute this ORIGINAL package.

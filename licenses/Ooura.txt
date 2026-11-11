@@ -1,0 +1,15 @@
+Takuya Ooura, General Purpose FFT Package, 2006-12-28.
+https://www.kurims.kyoto-u.ac.jp/~ooura/fft.html
+
+Copyright Takuya OOURA, 1996-2001
+
+You may use, copy, modify and distribute this code for any purpose (include
+commercial use) and without fee. Please refer to this package when you modify
+this code.
+
+Rocoflex's src/fft.rs is a Rust adaptation of fftsg_h.c from this package,
+using single-precision working storage and the original arithmetic ordering.
+
+The double-precision resampling transform in
+src/resample44100/ooura_table_f64.rs is adapted from fft4g.c, not fftsg_h.c.
+Its separate attribution and upstream readme notice are in Ooura-fft4g.txt.

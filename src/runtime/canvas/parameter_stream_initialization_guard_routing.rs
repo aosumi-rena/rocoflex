@@ -1,0 +1,37 @@
+use super::{g, Scope, WrapperServices};
+use super::super as l;
+use g::{native_tails as n, wrapper_call as w};
+use n::{initialization as i, initialization_call as ic};
+pub trait InitializationServices: WrapperServices {
+    type GuardWrapperInitializationCallOwner; type GuardWrapperInitializationTailOwner;
+
+    fn guard_wrapper_initialization_sub(&mut self, o: &mut l::Owners<Self>, guard: &mut Option<g::CallReturned<Self::GuardCallOwner>>, source_tail: Option<&mut Option<g::native_return::TailCallReturned<Self::GuardTailOwner>>>, wrapper_call: &mut Option<n::CallReturned<Self::GuardWrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::GuardWrapperTailOwner>>, calls: &mut i::Calls<Self::GuardWrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::GuardWrapperInitializationTailOwner>>, returned: &mut Option<i::StackAdjustment>) -> Result<(), Self::Error>;
+    fn guard_wrapper_initialization_write(&mut self, o: &mut l::Owners<Self>, guard: &mut Option<g::CallReturned<Self::GuardCallOwner>>, source_tail: Option<&mut Option<g::native_return::TailCallReturned<Self::GuardTailOwner>>>, wrapper_call: &mut Option<n::CallReturned<Self::GuardWrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::GuardWrapperTailOwner>>, calls: &mut i::Calls<Self::GuardWrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::GuardWrapperInitializationTailOwner>>, request: i::WriteRequest, returned: &mut Option<i::WriteReturned>) -> Result<(), Self::Error>;
+    fn guard_wrapper_initialization_call(&mut self, o: &mut l::Owners<Self>, guard: &mut Option<g::CallReturned<Self::GuardCallOwner>>, source_tail: Option<&mut Option<g::native_return::TailCallReturned<Self::GuardTailOwner>>>, wrapper_call: &mut Option<n::CallReturned<Self::GuardWrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::GuardWrapperTailOwner>>, calls: &mut i::Calls<Self::GuardWrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::GuardWrapperInitializationTailOwner>>, request: i::CallRequest) -> Result<(), Self::Error>;
+    fn guard_wrapper_initialization_add(&mut self, o: &mut l::Owners<Self>, guard: &mut Option<g::CallReturned<Self::GuardCallOwner>>, source_tail: Option<&mut Option<g::native_return::TailCallReturned<Self::GuardTailOwner>>>, wrapper_call: &mut Option<n::CallReturned<Self::GuardWrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::GuardWrapperTailOwner>>, calls: &mut i::Calls<Self::GuardWrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::GuardWrapperInitializationTailOwner>>, returned: &mut Option<i::StackAdjustment>) -> Result<(), Self::Error>;
+    fn guard_wrapper_initialization_tail(&mut self, o: &mut l::Owners<Self>, guard: &mut Option<g::CallReturned<Self::GuardCallOwner>>, source_tail: Option<&mut Option<g::native_return::TailCallReturned<Self::GuardTailOwner>>>, wrapper_call: &mut Option<n::CallReturned<Self::GuardWrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::GuardWrapperTailOwner>>, calls: &mut i::Calls<Self::GuardWrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::GuardWrapperInitializationTailOwner>>, request: i::TailRequest) -> Result<(), Self::Error>;
+
+    fn adopt_completed_guard_wrapper_initialization(&mut self, o: &mut l::Owners<Self>, guard: &mut Option<g::CallReturned<Self::GuardCallOwner>>, source_tail: Option<&mut Option<g::native_return::TailCallReturned<Self::GuardTailOwner>>>, wrapper_call: &mut Option<n::CallReturned<Self::GuardWrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::GuardWrapperTailOwner>>, history: ic::History, held: &mut Option<ic::Retained<Self::GuardWrapperInitializationCallOwner, Self::GuardWrapperInitializationTailOwner>>) -> Result<(), Self::Error>;
+}
+impl<S: InitializationServices> w::InitializationServices for Scope<S> {
+    type WrapperInitializationCallOwner = S::GuardWrapperInitializationCallOwner; type WrapperInitializationTailOwner = S::GuardWrapperInitializationTailOwner;
+    fn wrapper_initialization_sub(&mut self, r: w::Resources<'_, Self>, wrapper_call: &mut Option<n::CallReturned<Self::WrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::WrapperTailOwner>>, calls: &mut i::Calls<Self::WrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::WrapperInitializationTailOwner>>, returned: &mut Option<i::StackAdjustment>) -> Result<(), Self::Error> {
+        self.services.guard_wrapper_initialization_sub(&mut r.guard.storage.owners, &mut r.guard.call, r.source_tail, wrapper_call, wrapper_tail, calls, tail, returned)
+    }
+    fn wrapper_initialization_write(&mut self, r: w::Resources<'_, Self>, wrapper_call: &mut Option<n::CallReturned<Self::WrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::WrapperTailOwner>>, calls: &mut i::Calls<Self::WrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::WrapperInitializationTailOwner>>, request: i::WriteRequest, returned: &mut Option<i::WriteReturned>) -> Result<(), Self::Error> {
+        self.services.guard_wrapper_initialization_write(&mut r.guard.storage.owners, &mut r.guard.call, r.source_tail, wrapper_call, wrapper_tail, calls, tail, request, returned)
+    }
+    fn wrapper_initialization_call(&mut self, r: w::Resources<'_, Self>, wrapper_call: &mut Option<n::CallReturned<Self::WrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::WrapperTailOwner>>, calls: &mut i::Calls<Self::WrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::WrapperInitializationTailOwner>>, request: i::CallRequest) -> Result<(), Self::Error> {
+        self.services.guard_wrapper_initialization_call(&mut r.guard.storage.owners, &mut r.guard.call, r.source_tail, wrapper_call, wrapper_tail, calls, tail, request)
+    }
+    fn wrapper_initialization_add(&mut self, r: w::Resources<'_, Self>, wrapper_call: &mut Option<n::CallReturned<Self::WrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::WrapperTailOwner>>, calls: &mut i::Calls<Self::WrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::WrapperInitializationTailOwner>>, returned: &mut Option<i::StackAdjustment>) -> Result<(), Self::Error> {
+        self.services.guard_wrapper_initialization_add(&mut r.guard.storage.owners, &mut r.guard.call, r.source_tail, wrapper_call, wrapper_tail, calls, tail, returned)
+    }
+    fn wrapper_initialization_tail(&mut self, r: w::Resources<'_, Self>, wrapper_call: &mut Option<n::CallReturned<Self::WrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::WrapperTailOwner>>, calls: &mut i::Calls<Self::WrapperInitializationCallOwner>, tail: &mut Option<i::TailReturned<Self::WrapperInitializationTailOwner>>, request: i::TailRequest) -> Result<(), Self::Error> {
+        self.services.guard_wrapper_initialization_tail(&mut r.guard.storage.owners, &mut r.guard.call, r.source_tail, wrapper_call, wrapper_tail, calls, tail, request)
+    }
+    fn adopt_completed_wrapper_initialization(&mut self, r: w::Resources<'_, Self>, wrapper_call: &mut Option<n::CallReturned<Self::WrapperCallOwner>>, wrapper_tail: &mut Option<n::TailReturned<Self::WrapperTailOwner>>, history: ic::History, held: &mut Option<ic::Retained<Self::WrapperInitializationCallOwner, Self::WrapperInitializationTailOwner>>) -> Result<(), Self::Error> {
+        self.services.adopt_completed_guard_wrapper_initialization(&mut r.guard.storage.owners, &mut r.guard.call, r.source_tail, wrapper_call, wrapper_tail, history, held)
+    }
+}
+

@@ -1,0 +1,53 @@
+[package]
+name = "rocoflex"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "Voice morphing engine and editor developed with Rust + egui."
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["desktop"]
+desktop = ["dep:eframe", "dep:accesskit_windows", "dep:pollster", "dep:rfd", "dep:wgpu"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+eframe = { version = "=0.36.2", optional = true, default-features = false, features = ["default_fonts", "wgpu_no_default_features", "accesskit"] }
+pollster = { version = "=1.0.1", optional = true }
+rfd = { version = "=0.17.2", optional = true, default-features = false }
+wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["std", "wgsl"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-core = "=0.62.2"
+accesskit_windows = { version = "=0.32.1", optional = true }
+wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["dx12"] }
+windows = { version = "=0.62.2", features = [
+    "Win32_Devices_FunctionDiscovery", "Win32_Foundation",
+    "Win32_Graphics_DirectComposition", "Win32_Graphics_Gdi",
+    "Win32_Media_Audio", "Win32_Media_Multimedia", "Win32_Security",
+    "Win32_System_Com", "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole",
+    "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_Variant",
+    "Win32_UI_Controls", "Win32_UI_HiDpi", "Win32_UI_Input_Ime", "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell", "Win32_UI_Shell_PropertiesSystem", "Win32_UI_WindowsAndMessaging"
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["metal"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "=0.36.2", optional = true, default-features = false, features = ["x11", "wayland"] }
+wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["vulkan", "gles"] }
+rfd = { version = "=0.17.2", optional = true, default-features = false, features = ["xdg-portal", "wayland"] }
+
+[profile.release]
+lto = "thin"
+strip = true
+
+
+[patch.crates-io]
+winit = { path = "vendor/winit" }

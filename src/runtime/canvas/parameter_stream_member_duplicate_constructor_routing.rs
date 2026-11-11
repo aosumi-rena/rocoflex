@@ -1,0 +1,57 @@
+use super::{Scope, LookupMemberServices};
+use super::super::{self as f, constructor as c};
+use c::{object_lookup as l, object_lookup_call};
+use l::member_construction as m;
+use m::{duplicate as d, duplicate_call as dc};
+pub trait LookupMemberDuplicateServices: LookupMemberServices {
+    type ConstructorLookupMemberDuplicateCallOwner;
+
+    fn constructor_lookup_member_duplicate_call(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, request: d::CallRequest) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_read_word16(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, pc: u32, address: u64) -> Result<u16, Self::Error>;
+    fn constructor_lookup_member_duplicate_write_word(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, pc: u32, address: u64, word: u64) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_save(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, pc: u32, register: d::native_entry::Register, returned: &mut Option<d::native_entry::Store>) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_push(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_entry::Push>) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_sub(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_entry::Subtract>) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_restore(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, pc: u32, register: d::native_return::Register, returned: &mut Option<d::native_return::Load>) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_add(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_return::StackAdjustment>) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_pop(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_return::Pop>) -> Result<(), Self::Error>;
+    fn constructor_lookup_member_duplicate_ret(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, duplicate: &mut d::Calls<Self::ConstructorLookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_return::ActualReturn>) -> Result<(), Self::Error>;
+
+    fn adopt_completed_constructor_lookup_member_duplicate(&mut self, o: &mut f::Owners<Self>, ctor: &mut c::Calls<Self::ConstructorCallOwner>, lookup: &mut l::Calls<Self::ConstructorLookupCallOwner>, member: &mut m::Calls<Self::ConstructorLookupMemberCallOwner>, history: dc::History, held: &mut Option<dc::Retained<Self::ConstructorLookupMemberDuplicateCallOwner>>) -> Result<(), Self::Error>;
+}
+impl<S: LookupMemberDuplicateServices> object_lookup_call::MemberDuplicateServices for Scope<S> {
+    type LookupMemberDuplicateCallOwner = S::ConstructorLookupMemberDuplicateCallOwner;
+    fn lookup_member_duplicate_call(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, request: d::CallRequest) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_call(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, request)
+    }
+    fn lookup_member_duplicate_read_word16(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, pc: u32, address: u64) -> Result<u16, Self::Error> {
+        self.services.constructor_lookup_member_duplicate_read_word16(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, pc, address)
+    }
+    fn lookup_member_duplicate_write_word(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, pc: u32, address: u64, word: u64) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_write_word(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, pc, address, word)
+    }
+    fn lookup_member_duplicate_save(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, pc: u32, register: d::native_entry::Register, returned: &mut Option<d::native_entry::Store>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_save(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, pc, register, returned)
+    }
+    fn lookup_member_duplicate_push(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_entry::Push>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_push(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, returned)
+    }
+    fn lookup_member_duplicate_sub(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_entry::Subtract>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_sub(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, returned)
+    }
+    fn lookup_member_duplicate_restore(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, pc: u32, register: d::native_return::Register, returned: &mut Option<d::native_return::Load>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_restore(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, pc, register, returned)
+    }
+    fn lookup_member_duplicate_add(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_return::StackAdjustment>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_add(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, returned)
+    }
+    fn lookup_member_duplicate_pop(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_return::Pop>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_pop(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, returned)
+    }
+    fn lookup_member_duplicate_ret(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, duplicate: &mut d::Calls<Self::LookupMemberDuplicateCallOwner>, returned: &mut Option<d::native_return::ActualReturn>) -> Result<(), Self::Error> {
+        self.services.constructor_lookup_member_duplicate_ret(&mut o.storage.owners, &mut o.calls, lookup, member, duplicate, returned)
+    }
+    fn adopt_completed_lookup_member_duplicate(&mut self, o: &mut c::Owners<Self>, lookup: &mut l::Calls<Self::LookupCallOwner>, member: &mut m::Calls<Self::LookupMemberCallOwner>, history: dc::History, held: &mut Option<dc::Retained<Self::LookupMemberDuplicateCallOwner>>) -> Result<(), Self::Error> {
+        self.services.adopt_completed_constructor_lookup_member_duplicate(&mut o.storage.owners, &mut o.calls, lookup, member, history, held)
+    }
+}
