@@ -102,10 +102,19 @@ impl DesktopApp {
         Ok(())
     }
 
-    pub(super) fn source_actions_rect(&self, full: Rect) -> Option<Rect> {
+    pub(super) fn source_actions_rect(&mut self, full: Rect) -> Option<Rect> {
         let owner = self.selected?;
         if owner >= self.preset.sources.len() || self.layout_blocked() {
             return None;
+        }
+        let size = vec2(64.0, 28.0);
+        if self.experimental.enabled {
+            let min = full.min + vec2(12.0, 76.0);
+            let max = full.max - size - vec2(12.0, 12.0);
+            if !min.is_finite() || !max.is_finite() || min.x > max.x || min.y > max.y {
+                return None;
+            }
+            return self.experimental_source_actions_rect(owner, full, size);
         }
         if self.native_layout && !self.allow_canvas_editing {
             let cached = self.source_menu_cache.filter(|cached| cached.owner == owner)?;
@@ -123,7 +132,6 @@ impl DesktopApp {
             ));
         }
 
-        let size = vec2(64.0, 28.0);
         let min = full.min + vec2(12.0, 76.0);
         let max = full.max - size - vec2(12.0, 12.0);
         if !self.selected_at.x.is_finite() || !self.selected_at.y.is_finite()

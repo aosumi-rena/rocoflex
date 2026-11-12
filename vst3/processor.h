@@ -12,7 +12,7 @@ public:
         uint64_t attemptId = 0;
         uint64_t attemptConfig = 0;
         uint64_t sequence = 0;
-        ProtocolV3::Phase phase = ProtocolV3::Phase::NotPrepared;
+        ProtocolV4::Phase phase = ProtocolV4::Phase::NotPrepared;
         int32_t code = kBridgeNotReady;
         bool bridgeDetailReady = false;
     };
@@ -23,7 +23,7 @@ public:
         attempt_.store(++nextAttempt_, std::memory_order_relaxed);
         attemptConfig_.store(configuration, std::memory_order_relaxed);
         bridgeDetailReady_.store(false, std::memory_order_relaxed);
-        publish(ProtocolV3::Phase::Preparing, kBridgeBusy);
+        publish(ProtocolV4::Phase::Preparing, kBridgeBusy);
         contextSequence_.fetch_add(1, std::memory_order_release);
         return true;
     }
@@ -31,27 +31,27 @@ public:
     void finishAttempt(int32_t code, bool cameFromBridge) noexcept {
         contextSequence_.fetch_add(1, std::memory_order_acq_rel);
         bridgeDetailReady_.store(code < 0 && cameFromBridge, std::memory_order_relaxed);
-        publish(code == kBridgeOk ? ProtocolV3::Phase::Ready :
-            code < 0 ? ProtocolV3::Phase::Faulted : ProtocolV3::Phase::NotPrepared, code);
+        publish(code == kBridgeOk ? ProtocolV4::Phase::Ready :
+            code < 0 ? ProtocolV4::Phase::Faulted : ProtocolV4::Phase::NotPrepared, code);
         contextSequence_.fetch_add(1, std::memory_order_release);
     }
 
     // Call after the fatal-result latch stops bridge process/set-condition calls.
     void observeProcess(int32_t code, bool cameFromBridge) noexcept {
-        if (phase(word_.load(std::memory_order_acquire)) == ProtocolV3::Phase::Faulted) return;
+        if (phase(word_.load(std::memory_order_acquire)) == ProtocolV4::Phase::Faulted) return;
         if (code < 0) {
             bridgeDetailReady_.store(cameFromBridge, std::memory_order_relaxed);
-            publish(ProtocolV3::Phase::Faulted, code);
+            publish(ProtocolV4::Phase::Faulted, code);
         } else {
-            publish(code == kBridgeOk ? ProtocolV3::Phase::Processing :
-                ProtocolV3::Phase::NotPrepared, code);
+            publish(code == kBridgeOk ? ProtocolV4::Phase::Processing :
+                ProtocolV4::Phase::NotPrepared, code);
         }
     }
 
     void stopped(bool prepared) noexcept {
         const auto before = word_.load(std::memory_order_acquire);
-        if (phase(before) != ProtocolV3::Phase::Faulted)
-            publish(prepared ? ProtocolV3::Phase::Ready : ProtocolV3::Phase::NotPrepared,
+        if (phase(before) != ProtocolV4::Phase::Faulted)
+            publish(prepared ? ProtocolV4::Phase::Ready : ProtocolV4::Phase::NotPrepared,
                 prepared ? kBridgeOk : kBridgeNotReady);
     }
 
@@ -69,7 +69,7 @@ public:
             next.code = byte < 128 ? byte : byte - 256;
             next.bridgeDetailReady = bridgeDetailReady_.load(std::memory_order_acquire);
             if (before != contextSequence_.load(std::memory_order_acquire)) continue;
-            next.bridgeDetailReady &= next.phase == ProtocolV3::Phase::Faulted;
+            next.bridgeDetailReady &= next.phase == ProtocolV4::Phase::Faulted;
             out = next;
             return true;
         }
@@ -79,10 +79,10 @@ public:
 private:
     static_assert(std::atomic<uint64_t>::is_always_lock_free,
         "The selected x86-64 callback requires lock-free status publication");
-    static ProtocolV3::Phase phase(uint64_t word) noexcept {
-        return static_cast<ProtocolV3::Phase>((word >> 8) & 0xff);
+    static ProtocolV4::Phase phase(uint64_t word) noexcept {
+        return static_cast<ProtocolV4::Phase>((word >> 8) & 0xff);
     }
-    void publish(ProtocolV3::Phase nextPhase, int32_t code) noexcept {
+    void publish(ProtocolV4::Phase nextPhase, int32_t code) noexcept {
         const auto payload = (uint64_t(nextPhase) << 8) | static_cast<uint8_t>(code);
         auto before = word_.load(std::memory_order_relaxed);
         for (;;) {

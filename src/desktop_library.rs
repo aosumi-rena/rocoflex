@@ -111,6 +111,7 @@ fn scan_preset_paths(paths: &[PresetPath], cancelled: &AtomicBool) -> Vec<(Strin
                 if !seen_files.insert(canonical.to_string_lossy().to_lowercase()) { continue; }
                 let Ok(text) = read_preset_text(&path) else { continue; };
                 let Ok(document) = serde_json::from_str::<Value>(&text) else { continue; };
+                if validate_preset_kind(&path, &document).is_err() { continue; }
                 let name = document["presetName"].as_str().unwrap_or("Untitled").to_owned();
                 entries.push((name, path));
             }
@@ -134,6 +135,7 @@ fn scan(paths: &[PresetPath], cancelled: &AtomicBool) -> ScanResult {
         if cancelled.load(Ordering::Relaxed) { break; }
         if let Ok(text) = read_preset_text(&entry.path)
             && let Ok(document) = serde_json::from_str::<Value>(&text)
+            && validate_preset_kind(&entry.path, &document).is_ok()
             && let Some(sources) = voice(&document)["sources"].as_array()
         {
             for source in sources.iter().filter(|source| source["type"] == "trajectory") {
@@ -229,12 +231,13 @@ pub(super) fn preset_candidate_name(name: &str, suffix: usize) -> String {
 pub(super) fn publish_new_preset<T: AsRef<[u8]>>(
     directory: &Path,
     name: &str,
+    experimental: bool,
     mut prepare: impl FnMut(&str) -> Result<T>,
 ) -> Result<(PathBuf, T)> {
     let mut suffix = 0usize;
     loop {
         let candidate = preset_candidate_name(name, suffix);
-        let path = directory.join(format!("{}.json", safe_filename(&candidate)));
+        let path = directory.join(preset_filename(&candidate, experimental));
 
         let prepared = prepare(&candidate)?;
         let mut file = match OpenOptions::new().write(true).create_new(true).open(&path) {
@@ -254,6 +257,66 @@ pub(super) fn publish_new_preset<T: AsRef<[u8]>>(
             })?;
         return Ok((path, prepared));
     }
+}
+
+pub(super) fn preset_filename(name: &str, experimental: bool) -> String {
+    let mut stem = safe_filename(name);
+    if experimental {
+        return format!("{stem}.exp.json");
+    }
+    if stem.to_ascii_lowercase().ends_with(".exp") {
+        // Keep an ordinary preset's display name while avoiding the reserved suffix.
+        stem.push('_');
+    }
+    format!("{stem}.json")
+}
+
+pub(super) fn is_experimental_preset_path(path: &Path) -> bool {
+    path.file_stem().is_some_and(|stem| {
+        stem.as_encoded_bytes().len() >= 4
+            && stem.as_encoded_bytes()[stem.as_encoded_bytes().len() - 4..].eq_ignore_ascii_case(b".exp")
+    }) && is_json_preset_path(path)
+}
+
+fn is_json_preset_path(path: &Path) -> bool {
+    #[cfg(windows)]
+    if path.file_name().is_some_and(|name| name.as_encoded_bytes().contains(&b':')) {
+        return false;
+    }
+    path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+}
+
+pub(super) fn validate_preset_kind(path: &Path, document: &Value) -> Result<()> {
+    if !is_json_preset_path(path) {
+        return Err("Choose a preset filename ending in .json.".into());
+    }
+    let metadata = crate::preset::experimental_canvas_metadata(document)?;
+    match (is_experimental_preset_path(path), metadata) {
+        (true, None) => Err("The experimental preset is missing canvas settings.".into()),
+        (false, Some(_)) => Err("Experimental presets must use the .exp.json extension.".into()),
+        (true, Some(_)) => crate::preset::waypoints(document).map(|_| ()),
+        _ => Ok(()),
+    }
+}
+
+pub(super) fn write_exported_preset(path: &Path, bytes: &[u8], create_new: bool) -> Result<()> {
+    if protected_path(path) || path.canonicalize().is_ok_and(|target| protected_path(&target))
+        || path.parent().and_then(|parent| parent.canonicalize().ok())
+            .is_some_and(|parent| protected_path(&parent))
+    {
+        return Err("Choose a different preset location.".into());
+    }
+    if !create_new {
+        return fs::write(path, bytes).map_err(|error| error.to_string());
+    }
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path).map_err(|error| {
+        if error.kind() == ErrorKind::AlreadyExists {
+            "Choose a new filename for this preset copy.".to_owned()
+        } else {
+            "The new preset file could not be created.".to_owned()
+        }
+    })?;
+    file.write_all(bytes).and_then(|_| file.flush()).map_err(|error| error.to_string())
 }
 
 pub(super) fn read_preset_text(path: &Path) -> Result<String> {

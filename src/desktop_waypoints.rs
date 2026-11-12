@@ -9,8 +9,10 @@ pub(super) struct State {
     reroute: Option<Reroute>,
     claimed: bool,
     draft: Option<KeyDraft>,
+    midi_draft: Option<MidiDraft>,
     batch_allowed: bool,
     batch_used: bool,
+    batch_blocked: bool,
     primary_cancelled: bool,
     installation: Option<u64>,
 }
@@ -18,19 +20,51 @@ pub(super) struct State {
 impl Default for State {
     fn default() -> Self {
         Self { basis: None, selected: None, armed: None, reroute: None, claimed: false,
-            draft: None, batch_allowed: true, batch_used: false, primary_cancelled: false, installation: Some(0) }
+            draft: None, midi_draft: None, batch_allowed: true, batch_used: false, batch_blocked: false,
+            primary_cancelled: false, installation: Some(0) }
     }
 }
 
 struct KeyDraft { index: usize, basis: Value, value: Option<String> }
+struct MidiDraft { index: usize, basis: Value, value: Option<super::shortcuts::MidiBinding> }
 
-pub(crate) const ALL_KEY_BITS: u64 = ((1u64 << 36) - 1) << 3;
+fn effective_midi(document: &Value) -> Vec<(usize, super::shortcuts::MidiBinding)> {
+    let Some(rows) = raw_array(document).and_then(Value::as_array) else { return Vec::new(); };
+    rows.iter().enumerate().filter_map(|(index, row)| {
+        let value = serde_json::from_value::<super::shortcuts::MidiBinding>(row.get("midiShortcut")?.clone()).ok()?;
+        value.valid().then_some((index, value))
+    }).collect()
+}
+pub(super) fn midi_in_use(document: &Value, binding: super::shortcuts::MidiBinding) -> bool {
+    midi_match_count(document, binding) != 0
+}
+pub(super) fn midi_match_count(document: &Value, binding: super::shortcuts::MidiBinding) -> usize {
+    effective_midi(document).iter().filter(|(_, value)| *value == binding).count()
+}
+pub(super) fn midi_target(document: &Value, binding: super::shortcuts::MidiBinding) -> Option<usize> {
+    let values = effective_midi(document);
+    let mut matches = values.iter().filter(|(_, value)| *value == binding);
+    let index = matches.next()?.0;
+    matches.next().is_none().then_some(index)
+}
+
+const WAYPOINT_KEYS: [egui::Key; 36] = {
+    use egui::Key::*;
+    [Num0,Num1,Num2,Num3,Num4,Num5,Num6,Num7,Num8,Num9,
+        A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
+};
+const WAYPOINT_CAPTURE_BITS: u64 = ((1u64 << WAYPOINT_KEYS.len()) - 1) << 3;
+// Bits 0–2 are editor commands and bit 39 owns 3D navigation.
+const EXTRA_SHORTCUT_START: usize = 40;
+pub(crate) const ALL_KEY_BITS: u64 = WAYPOINT_CAPTURE_BITS
+    | (((1u64 << super::shortcuts::EXTRA_KEYS.len()) - 1) << EXTRA_SHORTCUT_START);
 
 pub(crate) fn key_bit(key: egui::Key) -> u64 {
-    use egui::Key::*;
-    let keys = [Num0,Num1,Num2,Num3,Num4,Num5,Num6,Num7,Num8,Num9,
-        A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z];
-    keys.iter().position(|candidate| *candidate == key).map_or(0, |index| 1u64 << (index + 3))
+    if let Some(index) = WAYPOINT_KEYS.iter().position(|candidate| *candidate == key) {
+        return 1u64 << (index + 3);
+    }
+    super::shortcuts::EXTRA_KEYS.iter().position(|(candidate, _)| *candidate == key)
+        .map_or(0, |index| 1u64 << (index + EXTRA_SHORTCUT_START))
 }
 
 fn supported_key(value: &str) -> Option<egui::Key> {
@@ -48,6 +82,11 @@ fn key_description(document: &Value, index: usize, route: u64) -> Option<String>
     }
 }
 
+pub(super) fn key_in_use(document: &Value, key: egui::Key) -> bool { key_match_count(document, key) != 0 }
+pub(super) fn key_match_count(document: &Value, key: egui::Key) -> usize {
+    effective_keys(document).iter().filter(|(_, candidate)| *candidate == key).count()
+}
+
 fn effective_keys(document: &Value) -> Vec<(usize, egui::Key)> {
     let Ok(points) = waypoints(document) else { return Vec::new(); };
     points.iter().enumerate().filter_map(|(index, point)| {
@@ -57,10 +96,12 @@ fn effective_keys(document: &Value) -> Vec<(usize, egui::Key)> {
 }
 
 fn assigned(document: &Value, index: usize, description: &str) -> Result<Value> {
-    let key = supported_key(description).ok_or("Unsupported key shortcut")?;
     waypoints(document)?.get(index).ok_or("No selected waypoint")?;
-    if effective_keys(document).iter().any(|(other, candidate)| *other != index && *candidate == key) {
-        return Err("This key is already assigned to another waypoint.".into());
+    if !description.is_empty() {
+        let key = supported_key(description).ok_or("Unsupported key shortcut")?;
+        if effective_keys(document).iter().any(|(other, candidate)| *other != index && *candidate == key) {
+            return Err("This key is already assigned to another waypoint.".into());
+        }
     }
     let mut array = raw_array(document).cloned().ok_or("No waypoint list")?;
     array[index].as_object_mut().ok_or("Invalid waypoint")?.insert("keyBinding".into(), json!(description));
@@ -84,18 +125,22 @@ fn editable(document: &Value) -> Result<(Vec<Waypoint>, Vec<Value>)> {
     Ok((points, rows))
 }
 
-fn added(document: &Value, xy: [f64; 2]) -> Result<Value> {
+fn added(document: &Value, xy: [f64; 2], reserved: impl Fn(egui::Key) -> bool) -> Result<Value> {
     let (points, mut rows) = editable(document)?;
     if rows.len() == 256 || xy.iter().any(|v| !v.is_finite()) {
         return Err("The waypoint cannot be added.".into());
     }
-    rows.push(json!({"id": points.len() + 1, "midiBinding": "2.veO", "x": xy[0], "y": xy[1]}));
+    let mut row = json!({"id": points.len() + 1, "midiBinding": "2.veO", "x": xy[0], "y": xy[1]});
+    super::waypoint_bindings::prepare_new(&mut row, &rows, |key|
+        supported_key(&(key as char).to_string()).is_some_and(&reserved))?;
+    rows.push(row);
     Ok(Value::Array(rows))
 }
 
 fn deleted(document: &Value, index: usize) -> Result<Value> {
     let (points, mut rows) = editable(document)?;
     let removed = points.get(index).ok_or("No selected waypoint")?.route;
+    super::waypoint_bindings::preserve_implicit(&mut rows)?;
     rows.remove(index);
     for row in &mut rows {
         let id = row["id"].as_u64().expect("validated route");
@@ -107,6 +152,7 @@ fn deleted(document: &Value, index: usize) -> Result<Value> {
 fn reordered(document: &Value, order: &[usize]) -> Result<Value> {
     let (points, mut rows) = editable(document)?;
     if order.len() != points.len() { return Err("Incomplete waypoint order".into()); }
+    super::waypoint_bindings::preserve_implicit(&mut rows)?;
     for (route, &index) in order.iter().enumerate() {
         if index >= rows.len() || order[..route].contains(&index) {
             return Err("Invalid waypoint order".into());
@@ -114,6 +160,13 @@ fn reordered(document: &Value, order: &[usize]) -> Result<Value> {
         rows[index]["id"] = json!(route + 1);
     }
     Ok(Value::Array(rows))
+}
+
+fn write_depths(document: &mut Value, depths: Vec<f64>) {
+    if let Some(metadata) = document.get_mut("rocoflexExperimentalCanvas").and_then(Value::as_object_mut) {
+        if depths.iter().any(|z| *z != 0.0) { metadata.insert("waypointZ".into(), json!(depths)); }
+        else { metadata.remove("waypointZ"); }
+    }
 }
 
 impl DesktopApp {
@@ -126,9 +179,18 @@ impl DesktopApp {
     pub(super) fn waypoint_reset(&mut self) {
         let old = &self.monitor_controls.waypoint_ui;
         self.monitor_controls.waypoint_ui = State { batch_allowed: old.batch_allowed,
-            batch_used: old.batch_used, primary_cancelled: old.primary_cancelled,
+            batch_used: old.batch_used, batch_blocked: old.batch_blocked, primary_cancelled: old.primary_cancelled,
             installation: old.installation.and_then(|v| v.checked_add(1)),
             ..Default::default() };
+    }
+
+    pub(super) fn waypoint_key_owner_changed(&mut self) {
+        let state = &mut self.monitor_controls.waypoint_ui;
+        state.installation = state.installation.and_then(|value| value.checked_add(1));
+    }
+
+    pub(super) fn waypoint_block_current_key_batch(&mut self) {
+        self.monitor_controls.waypoint_ui.batch_blocked = true;
     }
 
     pub(crate) fn set_waypoint_key_batch(&mut self, allowed: bool) {
@@ -137,15 +199,19 @@ impl DesktopApp {
     }
 
     fn waypoint_keyboard_role(&self, ctx: &egui::Context) -> u8 {
-        if self.layout_blocked() || self.settings || self.color_picker || self.error.is_some()
+        if self.layout_blocked() || self.color_picker || self.error.is_some()
             || self.notice.is_some() || self.menu.is_some() || egui::Popup::is_any_open(ctx)
             || self.drag.is_some() || self.waypoint_active()
             || ctx.input(|i| !i.focused || i.pointer.any_down()) { return 0; }
+        if self.settings {
+            return if self.shortcuts.key_editing() && !ctx.egui_wants_keyboard_input() { 3 } else { 0 };
+        }
         if let Some(Edit::WaypointKey(index)) = self.editor {
             return if self.monitor_controls.waypoint_ui.draft.as_ref().is_some_and(|draft|
                 draft.index == index && Some(&draft.basis) == raw_array(&self.preset.document)) { 2 } else { 0 };
         }
-        if self.editor.is_some() || ctx.egui_wants_keyboard_input() { 0 } else { 1 }
+        if self.editor.is_some() || (ctx.egui_wants_keyboard_input() && !self.experimental_canvas_navigation_active(ctx))
+        { 0 } else { 1 }
     }
 
     pub(crate) fn waypoint_key_owner(&self, ctx: &egui::Context) -> Option<(u64,u64,u8)> {
@@ -155,11 +221,13 @@ impl DesktopApp {
 
     pub(super) fn waypoint_key_mask(&self, ctx: &egui::Context) -> u64 {
         match self.waypoint_keyboard_role(ctx) {
-            2 => ALL_KEY_BITS,
+            2 => WAYPOINT_CAPTURE_BITS,
+            3 => ALL_KEY_BITS,
             1 => {
                 let keys = effective_keys(&self.preset.document);
-                keys.iter().filter(|(_, key)| keys.iter().filter(|(_, k)| k == key).count() == 1)
-                    .fold(0, |mask, (_, key)| mask | key_bit(*key))
+                let waypoint_mask = keys.iter().filter(|(_, key)| !self.shortcut_key_reserved_for_view(ctx, *key))
+                    .fold(0, |mask, (_, key)| mask | key_bit(*key));
+                waypoint_mask | self.shortcut_key_mask(ctx)
             }
             _ => 0,
         }
@@ -170,7 +238,7 @@ impl DesktopApp {
         let state = &mut self.monitor_controls.waypoint_ui;
         if state.batch_used { return; }
         state.batch_used = true;
-        if !state.batch_allowed { return; }
+        if !state.batch_allowed || state.batch_blocked { return; }
         let role = self.waypoint_keyboard_role(ctx);
         if role == 0 { return; }
         let key = ctx.input(|input| {
@@ -182,23 +250,110 @@ impl DesktopApp {
                 _ => None,
             });
             let (key, repeat, modifiers) = downs.next()?;
-            if downs.next().is_some() || repeat || modifiers.any() || key_bit(key) == 0 { return None; }
+            let allowed = if role == 2 { WAYPOINT_CAPTURE_BITS } else { ALL_KEY_BITS };
+            if downs.next().is_some() || repeat || modifiers.any() || key_bit(key) & allowed == 0 { return None; }
             input.events.iter().any(|event| matches!(event,
                 egui::Event::Key { key: current, pressed: true, repeat: false, modifiers, .. }
                     if *current == key && !modifiers.any())).then_some(key)
         });
         let Some(key) = key else { return; };
-        if role == 2 {
+        if role != 2 && self.experimental_canvas_navigation_active(ctx)
+            && matches!(key, egui::Key::W | egui::Key::A | egui::Key::S | egui::Key::D
+                | egui::Key::ArrowUp | egui::Key::ArrowDown | egui::Key::ArrowLeft | egui::Key::ArrowRight)
+        { return; }
+        if self.shortcut_key_capture_or_execute(ctx, key, role) {
+            ctx.input_mut(|input| { input.consume_key(egui::Modifiers::NONE, key); });
+        } else if role == 2 {
             ctx.input_mut(|input| { input.consume_key(egui::Modifiers::NONE, key); });
             let description = key.name().to_owned();
             if let Some(draft) = &mut self.monitor_controls.waypoint_ui.draft { draft.value = Some(description); }
-        } else {
+        } else if role == 1 && !self.shortcuts.claims_key(key) && !self.shortcut_key_reserved_for_view(ctx, key) {
             let keys = effective_keys(&self.preset.document);
             let mut matches = keys.iter().filter(|(_, candidate)| *candidate == key);
             if let Some(&(index, _)) = matches.next() && matches.next().is_none() {
                 ctx.input_mut(|input| { input.consume_key(egui::Modifiers::NONE, key); });
                 if let Err(error) = self.waypoint_recall(index) { self.error = Some(error); }
             }
+        }
+    }
+
+    pub(super) fn waypoint_midi_draft_valid(&self) -> bool {
+        let Some(Edit::WaypointMidi(index)) = self.editor else { return false; };
+        self.monitor_controls.waypoint_ui.midi_draft.as_ref().is_some_and(|draft|
+            draft.index == index && Some(&draft.basis) == raw_array(&self.preset.document))
+    }
+    pub(super) fn waypoint_learn_midi(&mut self, binding: super::shortcuts::MidiBinding) {
+        if self.waypoint_midi_draft_valid() {
+            if let Some(draft) = &mut self.monitor_controls.waypoint_ui.midi_draft { draft.value = Some(binding); }
+        }
+    }
+    pub(super) fn waypoint_begin_midi(&mut self, index: usize) {
+        if self.layout_blocked() || waypoints(&self.preset.document).ok().and_then(|v| v.get(index).copied()).is_none() { return; }
+        let Some(basis) = raw_array(&self.preset.document).cloned() else { return; };
+        let value = effective_midi(&self.preset.document).into_iter().find(|(i, _)| *i == index).map(|(_,v)| v);
+        self.waypoint_cancel();
+        self.monitor_controls.waypoint_ui.midi_draft = Some(MidiDraft { index, basis, value });
+        self.editor = Some(Edit::WaypointMidi(index));
+    }
+    pub(super) fn waypoint_confirm_midi(&mut self) -> Result<()> {
+        if !self.waypoint_midi_draft_valid() { return Err("The selected waypoint has changed.".into()); }
+        let draft = self.monitor_controls.waypoint_ui.midi_draft.as_ref().ok_or("No MIDI assignment")?;
+        if let Some(value) = draft.value {
+            if self.shortcuts.claimed_midi(value) || effective_midi(&self.preset.document).iter()
+                .any(|(index, candidate)| *index != draft.index && *candidate == value) {
+                return Err("This MIDI event is already assigned to another shortcut or waypoint.".into());
+            }
+        }
+        let mut array = draft.basis.clone();
+        let row = array[draft.index].as_object_mut().ok_or("Invalid waypoint")?;
+        if let Some(value) = draft.value { row.insert("midiShortcut".into(), json!(value)); }
+        else { row.remove("midiShortcut"); }
+        if Some(&array) != raw_array(&self.preset.document) {
+            self.undo.try_reserve(1).map_err(|_| "Waypoint history is full")?;
+            let before = self.capture_undo();
+            *voice_mut(&mut self.preset.document).get_mut("waypoints").expect("validated waypoint slot") = array;
+            self.changed(); self.remember_entry(before); self.waypoint_reset();
+        }
+        self.monitor_controls.waypoint_ui.midi_draft = None;
+        self.monitor_controls.waypoint_ui.claimed = true; self.editor = None;
+        Ok(())
+    }
+    pub(super) fn waypoint_midi_dialog(&mut self, ctx: &egui::Context, full: Rect) {
+        if !self.waypoint_midi_draft_valid() || ctx.input(|i| !i.focused || i.raw.events.iter()
+            .any(|e| matches!(e, egui::Event::WindowFocused(false)))) {
+            self.monitor_controls.waypoint_ui.midi_draft = None; self.editor = None; return;
+        }
+        self.overlay_rects.push(full);
+        let rect = Rect::from_center_size(full.center(), vec2(400.0, 165.0));
+        let lights = self.ambient_lights(full);
+        let message_open = self.error.is_some() || self.notice.is_some() || self.layout_blocked();
+        let mut cancel = false; let mut clear = false; let mut confirm = false;
+        controls::modal_panel(ctx, "waypoint-midi-editor", rect, Color32::TRANSPARENT, |ui| {
+            glass(ui.painter(), rect, &lights, false);
+            ui.add_enabled_ui(!message_open, |ui| {
+                let current = self.monitor_controls.waypoint_ui.midi_draft.as_ref().and_then(|d| d.value)
+                    .map(|v| v.label()).unwrap_or_else(|| "Unassigned".into());
+                ui.painter().text(rect.min + vec2(20.0,24.0), Align2::LEFT_CENTER, "Assign MIDI shortcut", FontId::proportional(14.0), TEXT);
+                ui.painter().text(rect.min + vec2(20.0,56.0), Align2::LEFT_CENTER, current, FontId::proportional(13.0), TEXT);
+                ui.painter().text(rect.min + vec2(20.0,80.0), Align2::LEFT_CENTER, "Send a MIDI note or raise a controller.", FontId::proportional(12.0), MUTED);
+                let yes = pill_button(ui, Rect::from_min_size(rect.min + vec2(20.0,115.0),vec2(110.0,28.0)), "midi-waypoint-ok", "OK", true);
+                let remove = pill_button(ui, Rect::from_min_size(rect.min + vec2(145.0,115.0),vec2(110.0,28.0)), "midi-waypoint-clear", "Clear", true);
+                let no = pill_button(ui, Rect::from_min_size(rect.min + vec2(270.0,115.0),vec2(110.0,28.0)), "midi-waypoint-cancel", "Cancel", true);
+                let genuine = |response: &egui::Response| response.clicked_by(egui::PointerButton::Primary)
+                    && !self.monitor_controls.waypoint_ui.primary_cancelled && ctx.input(|i| {
+                        let press = i.raw.events.iter().any(|e| matches!(e, egui::Event::PointerButton {button:egui::PointerButton::Primary,pressed:true,..}));
+                        let at = if press { canvas_gesture::primary_click_release(&i.raw.events, &[]) } else { canvas_gesture::armed_primary_release(&i.raw.events, &[]) };
+                        at.is_some_and(|at| response.rect.contains(at))
+                    });
+                confirm = genuine(&yes); clear = genuine(&remove); cancel = genuine(&no);
+                if confirm { yes.surrender_focus(); } if clear { remove.surrender_focus(); } if cancel { no.surrender_focus(); }
+            });
+        });
+        if !message_open && ctx.current_pass_index() == 0 {
+            if ctx.input(|i| i.key_pressed(egui::Key::Escape)) { ctx.input_mut(|i| { i.consume_key(egui::Modifiers::NONE, egui::Key::Escape); }); cancel = true; }
+            if clear { if let Some(draft) = &mut self.monitor_controls.waypoint_ui.midi_draft { draft.value = None; } }
+            if cancel { self.monitor_controls.waypoint_ui.midi_draft = None; self.editor = None; }
+            else if confirm && let Err(error) = self.waypoint_confirm_midi() { self.error = Some(error); }
         }
     }
 
@@ -221,6 +376,9 @@ impl DesktopApp {
         if self.editor != Some(Edit::WaypointKey(draft.index))
             || raw_array(&self.preset.document) != Some(&draft.basis) {
             return Err("The selected waypoint has changed.".into());
+        }
+        if draft.value.as_deref().and_then(supported_key).is_some_and(|key| self.shortcuts.claims_key(key)) {
+            return Err("This key is already assigned to another shortcut.".into());
         }
         let array = assigned(&self.preset.document, draft.index,
             draft.value.as_deref().ok_or("Unsupported key shortcut")?)?;
@@ -249,14 +407,14 @@ impl DesktopApp {
         }
         self.overlay_rects.push(full);
         let rect = Rect::from_center_size(full.center(), vec2(360.0, 160.0));
-        let mut cancel = false; let mut confirm = false;
+        let mut cancel = false; let mut clear = false; let mut confirm = false;
         let message_open = self.error.is_some() || self.notice.is_some() || self.layout_blocked();
         let lights = self.ambient_lights(full);
         controls::modal_panel(ctx, "waypoint-key-editor", rect, Color32::TRANSPARENT, |ui| {
             glass(ui.painter(), rect, &lights, false);
             ui.add_enabled_ui(!message_open, |ui| {
                 let current = self.monitor_controls.waypoint_ui.draft.as_ref()
-                    .and_then(|draft| draft.value.as_deref()).unwrap_or("Unsupported");
+                    .and_then(|draft| draft.value.as_deref()).filter(|value| !value.is_empty()).unwrap_or("Unassigned");
                 let current = localization::tr(ctx, current);
                 ui.painter().text(rect.min + vec2(20.0, 24.0), Align2::LEFT_CENTER,
                     localization::tr(ctx, "Assign key shortcut"), FontId::proportional(14.0), TEXT);
@@ -264,9 +422,11 @@ impl DesktopApp {
                     localization::tr(ctx, "Currently assigned to: _").replacen('_', &clipped_title(current, 24), 1), FontId::proportional(13.0), TEXT);
                 ui.painter().text(rect.min + vec2(20.0, 82.0), Align2::LEFT_CENTER,
                     localization::tr(ctx, "Press a key to change the assignment."), FontId::proportional(12.0), MUTED);
-                let ok = pill_button(ui, Rect::from_min_size(rect.min + vec2(20.0,112.0),vec2(150.0,28.0)),
+                let ok = pill_button(ui, Rect::from_min_size(rect.min + vec2(20.0,112.0),vec2(100.0,28.0)),
                     "waypoint-key-ok", "OK", true);
-                let no = pill_button(ui, Rect::from_min_size(rect.min + vec2(190.0,112.0),vec2(150.0,28.0)),
+                let remove = pill_button(ui, Rect::from_min_size(rect.min + vec2(130.0,112.0),vec2(100.0,28.0)),
+                    "waypoint-key-clear", "Clear", true);
+                let no = pill_button(ui, Rect::from_min_size(rect.min + vec2(240.0,112.0),vec2(100.0,28.0)),
                     "waypoint-key-cancel", "Cancel", true);
                 let genuine_click = |response: &egui::Response| {
                     response.clicked_by(egui::PointerButton::Primary)
@@ -279,8 +439,9 @@ impl DesktopApp {
                             at.is_some_and(|at| response.rect.contains(at))
                         })
                 };
-                confirm = genuine_click(&ok); cancel = genuine_click(&no);
+                confirm = genuine_click(&ok); clear = genuine_click(&remove); cancel = genuine_click(&no);
                 if confirm { ok.surrender_focus(); }
+                if clear { remove.surrender_focus(); }
                 if cancel { no.surrender_focus(); }
             });
         });
@@ -288,6 +449,7 @@ impl DesktopApp {
             if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
                 ctx.input_mut(|i| { i.consume_key(egui::Modifiers::NONE, egui::Key::Escape); }); cancel = true;
             }
+            if clear { if let Some(draft) = &mut self.monitor_controls.waypoint_ui.draft { draft.value = Some(String::new()); } }
             if cancel {
                 self.monitor_controls.waypoint_ui.draft = None;
                 self.monitor_controls.waypoint_ui.claimed = true; self.editor = None;
@@ -302,6 +464,7 @@ impl DesktopApp {
         if ctx.current_pass_index() == 0 {
             self.monitor_controls.waypoint_ui.claimed = false;
             self.monitor_controls.waypoint_ui.batch_used = false;
+            self.monitor_controls.waypoint_ui.batch_blocked = false;
         }
         self.monitor_controls.waypoint_ui.primary_cancelled = cancellations.iter()
             .any(|c| c.affects(egui::PointerButton::Primary));
@@ -329,21 +492,43 @@ impl DesktopApp {
         ctx.current_pass_index() != 0 && self.monitor_controls.waypoint_ui.claimed
     }
 
+    fn waypoint_screen(&self, point: &Waypoint, rect: Rect) -> Option<(Pos2, f64)> {
+        if self.experimental.enabled {
+            let [x, y, depth] = self.experimental_camera().project(
+                [point.xy[0], point.xy[1], point.z], [f64::from(rect.width()), f64::from(rect.height())])?;
+            let at = rect.min + vec2(x as f32, y as f32);
+            at.is_finite().then_some((at, depth))
+        } else {
+            let at = world_to_screen(Point::new(point.xy[0], point.xy[1]), rect, self.camera);
+            at.is_finite().then_some((at, 0.0))
+        }
+    }
+
     pub(super) fn waypoint_hit(&self, at: Pos2, rect: Rect) -> Option<usize> {
         if !rect.contains(at) || !at.is_finite() { return None; }
         let points = waypoints(&self.preset.document).ok()?;
-        points.iter().enumerate().rev().find_map(|(index, point)| {
-            let p = world_to_screen(Point::new(point.xy[0], point.xy[1]), rect, self.camera);
-            (p.is_finite() && p.distance(at) <= 11.0).then_some(index)
-        })
+        points.iter().enumerate().rev().filter_map(|(index, point)| {
+            let (p, depth) = self.waypoint_screen(point, rect)?;
+            (p.distance(at) <= 11.0 && (!self.experimental.enabled || rect.contains(p))).then_some((index, depth))
+        }).min_by(|(_, a), (_, b)| a.total_cmp(b)).map(|(index, _)| index)
     }
 
     pub(super) fn waypoint_add(&mut self) -> Result<()> {
-        let array = added(&self.preset.document, [self.probe.position.x, self.probe.position.y])?;
+        self.refresh_input_preferences_at(&preferences_dir())?;
+        self.waypoint_add_with_current_bindings()
+    }
+
+    pub(super) fn waypoint_add_with_current_bindings(&mut self) -> Result<()> {
+        let array = added(&self.preset.document, [self.probe.position.x, self.probe.position.y],
+            |key| self.shortcuts.claims_key(key))?;
+        let mut depths: Vec<_> = waypoints(&self.preset.document)?.iter().map(|point| point.z).collect();
+        depths.push(if self.experimental.enabled { self.experimental.z } else { 0.0 });
         self.undo.try_reserve(1).map_err(|_| "Waypoint history is full")?;
         let before = self.capture_undo();
+        if self.experimental.enabled { self.experimental_store_document(); }
         voice_mut(&mut self.preset.document).as_object_mut().expect("editable voice")
             .insert("waypoints".into(), array);
+        write_depths(&mut self.preset.document, depths);
         self.waypoint_reset();
         self.changed();
         self.remember_entry(before);
@@ -357,9 +542,12 @@ impl DesktopApp {
             return Err("The selected waypoint has changed.".into());
         }
         let array = deleted(&self.preset.document, index)?;
+        let mut depths: Vec<_> = waypoints(&self.preset.document)?.iter().map(|point| point.z).collect();
+        depths.remove(index);
         self.undo.try_reserve(1).map_err(|_| "Waypoint history is full")?;
         let before = self.capture_undo();
         *voice_mut(&mut self.preset.document).get_mut("waypoints").expect("validated existing array") = array;
+        write_depths(&mut self.preset.document, depths);
         self.waypoint_reset();
         self.changed();
         self.remember_entry(before);
@@ -378,6 +566,20 @@ impl DesktopApp {
         let state = &mut self.monitor_controls.waypoint_ui;
         state.basis = basis; state.selected = None; state.armed = None; state.draft = None;
         state.reroute = Some(Reroute { picked, start: Some(start) }); state.claimed = true;
+        Ok(())
+    }
+
+    pub(super) fn waypoint_step(&mut self, action: usize) -> Result<()> {
+        let mut points = waypoints(&self.preset.document)?.into_iter().enumerate().collect::<Vec<_>>();
+        points.sort_by_key(|(_, point)| point.route);
+        if points.is_empty() { return Ok(()); }
+        let selected = self.monitor_controls.waypoint_ui.selected.and_then(|index| points.iter().position(|(i, _)| *i == index));
+        let next = match action {
+            0 => selected.map_or(0, |position| (position + 1) % points.len()),
+            1 => selected.map_or(points.len()-1, |position| (position + points.len()-1) % points.len()),
+            _ => 0,
+        };
+        self.waypoint_recall(points[next].0)?;
         Ok(())
     }
 
@@ -412,7 +614,12 @@ impl DesktopApp {
             self.monitor_controls.waypoint_ui = state;
             return Ok(false);
         }
-        if !self.probe_changed(Probe { position: Point::new(point.xy[0], point.xy[1]), ..self.probe }) {
+        let moved = if self.experimental.enabled {
+            self.experimental_recall_waypoint([point.xy[0], point.xy[1], point.z])
+        } else {
+            self.probe_changed(Probe { position: Point::new(point.xy[0], point.xy[1]), ..self.probe })
+        };
+        if !moved {
             self.monitor_controls.waypoint_ui = state;
             return Ok(false);
         }
@@ -527,13 +734,15 @@ impl DesktopApp {
         let Some(index) = self.monitor_controls.waypoint_ui.selected else { return; };
         let Ok(points) = waypoints(&self.preset.document) else { return; };
         let Some(point) = points.get(index) else { return; };
-        let at = world_to_screen(Point::new(point.xy[0], point.xy[1]), full, self.camera);
-        if !at.is_finite() || !full.contains(at) { return; }
+        let Some((at, _)) = self.waypoint_screen(point, full) else { return; };
+        if !full.contains(at) { return; }
         let remove = Rect::from_min_size(at + vec2(16.0, -16.0), vec2(30.0, 30.0));
         if !full.contains_rect(remove) { return; }
         let key_rect = Rect::from_min_size(remove.min + vec2(32.0,0.0),vec2(30.0,30.0));
         let key_fits = full.contains_rect(key_rect);
-        let rect = if key_fits { remove.union(key_rect) } else { remove };
+        let midi_rect = Rect::from_min_size(key_rect.min + vec2(32.0,0.0), vec2(30.0,30.0));
+        let midi_fits = key_fits && full.contains_rect(midi_rect);
+        let rect = if midi_fits { remove.union(midi_rect) } else if key_fits { remove.union(key_rect) } else { remove };
         self.overlay_rects.push(rect);
         egui::Area::new(egui::Id::new("waypoint-actions")).order(egui::Order::Foreground)
             .fixed_pos(rect.min).show(ctx, |ui| {
@@ -552,13 +761,19 @@ impl DesktopApp {
                     }
                     optional_tooltip(key_response, self.show_tooltips, "Assign a key shortcut for the selected waypoint.");
                 }
+                if midi_fits {
+                    let response = ui.interact(midi_rect, ui.id().with("midi"), Sense::click());
+                    ui.painter().text(midi_rect.center(), Align2::CENTER_CENTER, "M", FontId::proportional(14.0), TEXT);
+                    if self.waypoint_control_clicked(ctx, &response, cancellations, abort, observations) { response.surrender_focus(); self.waypoint_begin_midi(index); }
+                    optional_tooltip(response, self.show_tooltips, "Assign a MIDI event for the selected waypoint.");
+                }
             });
     }
 
     pub(super) fn paint_waypoints(&self, ui: &egui::Ui, full: Rect) {
         let Ok(points) = waypoints(&self.preset.document) else { return; };
         let p = ui.painter().with_clip_rect(full);
-        let screen = |point: &Waypoint| world_to_screen(Point::new(point.xy[0], point.xy[1]), full, self.camera);
+        let screen = |point: &Waypoint| self.waypoint_screen(point, full);
         let reroute = self.monitor_controls.waypoint_ui.reroute.as_ref();
         if reroute.is_none() {
             let mut order: Vec<_> = points.iter().collect();
@@ -566,7 +781,7 @@ impl DesktopApp {
 
             let mut remaining_dots = 4096usize;
             for pair in order.windows(2) {
-                let a = screen(pair[0]); let b = screen(pair[1]);
+                let (Some((a, _)), Some((b, _))) = (screen(pair[0]), screen(pair[1])) else { continue; };
                 let length = a.distance(b);
                 if !a.is_finite() || !b.is_finite() || !length.is_finite() || length == 0.0 { continue; }
                 let steps = (length / 6.0).ceil().clamp(1.0, 1024.0) as usize;
@@ -582,9 +797,12 @@ impl DesktopApp {
                 p.line_segment([tip, tip - d * 6.0 - side], Stroke::new(1.0, TEXT));
             }
         }
-        for (index, point) in points.iter().enumerate() {
-            let at = screen(point);
-            if !at.is_finite() || !full.contains(at) { continue; }
+        let mut markers: Vec<_> = points.iter().enumerate().filter_map(|(index, point)| {
+            let (at, depth) = screen(point)?;
+            full.contains(at).then_some((index, point, at, depth))
+        }).collect();
+        if self.experimental.enabled { markers.sort_by(|a, b| b.3.total_cmp(&a.3)); }
+        for (index, point, at, _) in markers {
             let picked = reroute.is_some_and(|r| r.picked.contains(&index));
             let color = if picked || self.monitor_controls.waypoint_ui.selected == Some(index) { TEXT }
                 else { Color32::from_gray(180) };
@@ -592,7 +810,7 @@ impl DesktopApp {
             p.circle_stroke(at, 10.0, Stroke::new(1.0, color));
             if reroute.is_none() {
                 let label = key_description(&self.preset.document, index, point.route)
-                    .unwrap_or_else(|| "?".into());
+                    .filter(|value| !value.is_empty()).unwrap_or_else(|| "?".into());
                 p.text(at, Align2::CENTER_CENTER, clipped_title(&label, 8), FontId::proportional(12.0), color);
             }
         }

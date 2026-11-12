@@ -225,6 +225,7 @@ impl DesktopApp {
         self.offsets = offsets;
         self.label_offsets = labels;
         self.probe = probe;
+        self.experimental_restore_document();
         self.background_inputs.observe(&layout, &self.preset);
         self.layout = layout;
         self.layout_view = view;
@@ -324,6 +325,7 @@ impl DesktopApp {
         self.offsets = stage.offsets;
         self.label_offsets = stage.labels;
         self.probe = stage.probe;
+        if installing { self.experimental_restore_document(); }
         self.selected = None;
         self.drag = None;
         if installing {
@@ -731,7 +733,7 @@ impl DesktopApp {
                 && app.error.is_none() && app.notice.is_none()
         };
         if save && actions_available(self) {
-            if self.preset_needs_name() {
+            if self.preset_needs_name() || self.experimental_save_requires_copy() {
                 self.export();
             } else {
                 self.save_current();

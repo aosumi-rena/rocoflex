@@ -124,41 +124,65 @@ impl DesktopApp {
                 continue;
             }
 
-            let label = text.to_owned();
-            let measured_width = painter.layout_no_wrap(label.clone(), font.clone(), color).size().x;
-            let Some(draw) = Cached::draw(
-                &mut self.caption_placements[index], points, measured_width,
-                height, source.kind == "trajectory", &mut work, painter.ctx(),
-            ) else { continue; };
-            let mut job = egui::text::LayoutJob::simple(
-                label, font.clone(), color, draw.maximum_line_width as f32,
-            );
-            job.halign = egui::Align::Center;
-            let galley = painter.layout_job(job);
-
-            let baseline = galley.rows.first().and_then(|row| {
-                row.glyphs.first().map(|glyph| row.pos.y + glyph.pos.y)
-            }).or_else(|| {
-                let sample = painter.layout_no_wrap("M".into(), font.clone(), color);
-                sample.rows.first().and_then(|row| {
-                    row.glyphs.first().map(|glyph| row.pos.y + glyph.pos.y)
-                })
-            });
-            let Some(baseline) = baseline else { continue; };
-            let delta = self.label_offsets.get(index).copied().unwrap_or_default();
-            let origin = pos2(
-                rect.left() + draw.x as f32 + 50.0 + delta.x as f32,
-                rect.top() + draw.baseline_y as f32 - baseline + delta.y as f32,
-            );
-            let bounds = galley.rect.translate(origin.to_vec2());
-            if !bounds.min.x.is_finite() || !bounds.min.y.is_finite()
-                || !bounds.max.x.is_finite() || !bounds.max.y.is_finite()
-            {
-                continue;
+            let delta=self.label_offsets.get(index).copied().unwrap_or_default();
+            if let Some(bounds)=paint_caption(painter,rect,text,source.kind=="trajectory",points,delta,
+                &mut self.caption_placements[index],&mut work,&font,color,height) {
+                self.paint_pitch_capsule(painter, index, bounds);
+                self.label_rects.push((index,bounds));
             }
-
-            painter.galley(origin, galley, color);
-            self.label_rects.push((index, bounds));
         }
     }
+
+    /// Shares native caption placement and source-indexed bounds with 3D.
+    pub(super) fn paint_projected_source_labels(&mut self,painter:&egui::Painter,rect:Rect,
+        positions:&[Vec<Pos2>]) {
+        self.label_rects.clear();
+        self.caption_placements.resize_with(self.preset.sources.len(),||None);
+        if positions.len()!=self.preset.sources.len() || self.layout_blocked()
+            || layout::context::provider::check_current_thread().is_err()
+            || !rect.min.x.is_finite() || !rect.min.y.is_finite()
+            || !rect.width().is_finite() || rect.width()<=0.0
+            || !rect.height().is_finite() || rect.height()<=0.0 || rect.height()>=2_147_483_648.0
+        {return;}
+        let height=rect.height() as i32;
+        let font=FontId::proportional(13.5);
+        let color=Color32::from_rgb(183,184,187);
+        let mut work=262_144;
+        for (index,source) in self.preset.sources.iter().enumerate() {
+            let text=source.name.split('\0').next().unwrap_or_default();
+            let points:Vec<_>=positions[index].iter().map(|at|[at.x-rect.left(),at.y-rect.top()]).collect();
+            if text.is_empty() || points.is_empty() || points.iter().flatten().any(|p|!p.is_finite()) {
+                self.caption_placements[index]=None;continue;
+            }
+            let delta=self.label_offsets.get(index).copied().unwrap_or_default();
+            if let Some(bounds)=paint_caption(painter,rect,text,source.kind=="trajectory",points,delta,
+                &mut self.caption_placements[index],&mut work,&font,color,height) {
+                self.paint_pitch_capsule(painter, index, bounds);
+                self.label_rects.push((index,bounds));
+            }
+        }
+    }
+}
+
+/// The same text layout, placement cache, and bounds are used by both views.
+fn paint_caption(painter:&egui::Painter,rect:Rect,text:&str,trajectory:bool,points:Vec<[f32;2]>,
+    delta:Point,slot:&mut Option<Cached>,work:&mut usize,font:&FontId,color:Color32,height:i32)->Option<Rect> {
+    let label=text.to_owned();
+    let measured_width=painter.layout_no_wrap(label.clone(),font.clone(),color).size().x;
+    let draw=Cached::draw(slot,points,measured_width,height,trajectory,work,painter.ctx())?;
+    let mut job=egui::text::LayoutJob::simple(label,font.clone(),color,draw.maximum_line_width as f32);
+    job.halign=egui::Align::Center;
+    let galley=painter.layout_job(job);
+    let baseline=galley.rows.first().and_then(|row|row.glyphs.first().map(|glyph|row.pos.y+glyph.pos.y))
+        .or_else(||{
+            let sample=painter.layout_no_wrap("M".into(),font.clone(),color);
+            sample.rows.first().and_then(|row|row.glyphs.first().map(|glyph|row.pos.y+glyph.pos.y))
+        })?;
+    let origin=pos2(rect.left()+draw.x as f32+50.0+delta.x as f32,
+        rect.top()+draw.baseline_y as f32-baseline+delta.y as f32);
+    let bounds=galley.rect.translate(origin.to_vec2());
+    if !bounds.min.x.is_finite() || !bounds.min.y.is_finite()
+        || !bounds.max.x.is_finite() || !bounds.max.y.is_finite() {return None;}
+    painter.galley(origin,galley,color);
+    Some(bounds)
 }

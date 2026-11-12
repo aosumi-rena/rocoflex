@@ -90,20 +90,20 @@ void text16(TChar* out, size_t capacity, const char* source) {
     for (size_t i = 0; source[i] && i + 1 < capacity; ++i) out[i] = static_cast<unsigned char>(source[i]);
 }
 template<size_t N> void text16(TChar (&out)[N], const char* source) { text16(out,N,source); }
-bool newEpoch(ProtocolV3::Epoch& result) {
+bool newEpoch(ProtocolV4::Epoch& result) {
 #ifdef _WIN32
     GUID guid{};
     if (CoCreateGuid(&guid) != S_OK) return false;
     static_assert(sizeof(guid) == 16);
     std::memcpy(result.data(), &guid, sizeof(guid));
-    return !ProtocolV3::isZero(result);
+    return !ProtocolV4::isZero(result);
 #else
     (void)result; return false;
 #endif
 }
 std::string readEditorError(const char* fallback) {
     const auto length = roco_editor_last_error(nullptr, 0);
-    if (!length || length > ProtocolV3::kMaximumDetailBytes + 1) return fallback;
+    if (!length || length > ProtocolV4::kMaximumDetailBytes + 1) return fallback;
     std::vector<char> text(length);
     if (roco_editor_last_error(text.data(), text.size()) != length || text.back() != 0 || length == 1) return fallback;
     return std::string(text.data(), length - 1);
@@ -284,8 +284,8 @@ void Controller::cancelPending() {
 void Controller::beginSnapshot(bool newConnection) {
     const bool carryReload=!newConnection && peer_
         && (link_==LinkStage::Bound || link_==LinkStage::Confirming)
-        && instance_==statusInstance_ && !ProtocolV3::isZero(instance_)
-        && !ProtocolV3::isZero(server_) && !ProtocolV3::isZero(client_)
+        && instance_==statusInstance_ && !ProtocolV4::isZero(instance_)
+        && !ProtocolV4::isZero(server_) && !ProtocolV4::isZero(client_)
         && reloadPending_ && reloadRevision_==processorRevision_;
     cancelPending();
     if (!peer_) { link_ = LinkStage::Disconnected; return; }
@@ -299,14 +299,14 @@ void Controller::beginSnapshot(bool newConnection) {
         }
     }
     snapshotRequest_ = {};
-    snapshotRequest_.kind = ProtocolV3::Kind::RequestSnapshot;
+    snapshotRequest_.kind = ProtocolV4::Kind::RequestSnapshot;
     snapshotRequest_.processorInstance = instance_;
     snapshotRequest_.serverEpoch = server_;
     snapshotRequest_.clientEpoch = client_;
     snapshotRequest_.correlation = nextId();
     if (!snapshotRequest_.correlation) return;
     if (carryReload) {reloadPending_=true;reloadRevision_=processorRevision_;}
-    link_ = ProtocolV3::isZero(server_) ? LinkStage::Discovering : LinkStage::Confirming;
+    link_ = ProtocolV4::isZero(server_) ? LinkStage::Discovering : LinkStage::Confirming;
     lastWireAttempt_ = {};
 }
 bool Controller::installState(PluginState state) {
@@ -457,13 +457,13 @@ bool Controller::sendPacket(const Packet& packet) {
     const auto connection = connectionSerial_, generation = wireGeneration_;
     try {
         std::vector<uint8_t> bytes;
-        if (!ProtocolV3::encode(packet, bytes)) return false;
+        if (!ProtocolV4::encode(packet, bytes)) return false;
         auto* raw = newMessage(context_);
         if (!raw) return false;
         std::unique_ptr<IMessage, void(*)(IMessage*)> message(raw, [](IMessage* value) { value->release(); });
-        message->setMessageID(ProtocolV3::kMessageId);
+        message->setMessageID(ProtocolV4::kMessageId);
         auto* attributes = message->getAttributes();
-        if (!attributes || attributes->setBinary(ProtocolV3::kAttribute, bytes.data(),
+        if (!attributes || attributes->setBinary(ProtocolV4::kAttribute, bytes.data(),
             static_cast<uint32>(bytes.size())) != kResultOk) return false;
         if (connection != connectionSerial_ || generation != wireGeneration_ || peer_ != peer) return false;
         return peer->notify(message.get()) == kResultOk;
@@ -474,6 +474,7 @@ void Controller::retireLatencyError(const char* text) {
     if (!lastLocalCandidate_ && lastLocalError_==text) lastLocalError_.clear();
 }
 void Controller::resetLatencyBinding() {
+    pitchObservation_.reset();
     meterAvailable_=false;meterConfiguration_=0;meterAttempt_=0;
     meterStream_=0;meterOrdinal_=0;
     retireLatencyError(kLatencyRouteError);retireLatencyError(kLatencyNotifyError);retireLatencyError(kLatencyConflictError);
@@ -495,7 +496,7 @@ void Controller::advertiseLatencyRoute() {
     if (latencyAdvertising_ || !latencyRouteDirty_ || !peer_ || link_!=LinkStage::Bound) return;
     latencyAdvertising_=true;
     struct Reset {bool& flag;~Reset(){flag=false;}} reset{latencyAdvertising_};
-    Packet request;request.kind=ProtocolV3::Kind::RequestStatus;
+    Packet request;request.kind=ProtocolV4::Kind::RequestStatus;
     request.processorInstance=instance_;request.serverEpoch=server_;request.clientEpoch=client_;
     request.correlation=nextId();if (!request.correlation) return;
     request.stateRevision=processorRevision_;request.configToken=configToken_;
@@ -560,6 +561,7 @@ bool Controller::adoptSnapshot(const Packet& packet) {
     instance_ = packet.processorInstance; server_ = packet.serverEpoch; statusInstance_ = instance_;
     processorRevision_ = packet.stateRevision; configToken_ = packet.configToken;
     if (differentInstance) {
+        pitchObservation_.reset();
         latestAttempt_ = 0; latestStatusSequence_ = 0;
         meterStream_=0; meterOrdinal_=0;
     }
@@ -568,7 +570,7 @@ bool Controller::adoptSnapshot(const Packet& packet) {
     return adoptLatency(packet);
 }
 bool Controller::receivePacket(const Packet& packet) {
-    using namespace ProtocolV3;
+    using namespace ProtocolV4;
     if (packet.kind == Kind::ConnectionReady) {
         if (link_ == LinkStage::Discovering) lastWireAttempt_ = {};
         return true;
@@ -666,6 +668,7 @@ bool Controller::receivePacket(const Packet& packet) {
             meterConfiguration_=packet.configToken;meterAttempt_=packet.attemptId;
             if (meterAvailable_) {
                 std::memcpy(&meterEnvelope_,&packet.meterEnvelopeBits,sizeof(meterEnvelope_));
+                pitchObservation_.observe(packet.meterStream,packet.meterPitchOrdinal,packet.meterPitch,now-upperAge);
                 meterObserved_=now-upperAge;
             }
         }
@@ -735,7 +738,7 @@ void Controller::serviceMessages(bool immediately, bool editorOwner, bool policy
     if (servicing_ || !peer_ || link_ == LinkStage::Disconnected) return;
     servicing_ = true;
     struct Reset { bool& flag; ~Reset() { flag = false; } } reset{servicing_};
-    using namespace ProtocolV3;
+    using namespace ProtocolV4;
     const auto now = std::chrono::steady_clock::now();
     const bool due = immediately || now - lastWireAttempt_ >= std::chrono::milliseconds(250);
     if (link_ != LinkStage::Bound) {
@@ -845,6 +848,7 @@ bool Controller::freshInputMeter() const {
 void Controller::deliverInputMeter(RocoEditor* editor) {
     const bool fresh=freshInputMeter();
     roco_editor_set_input_meter(editor,fresh?1u:0u,fresh?meterEnvelope_:0.f);
+    roco_editor_set_input_pitch(editor,fresh?pitchObservation_.value(std::chrono::steady_clock::now()):0);
 }
 tresult PLUGIN_API Controller::connect(IConnectionPoint* peer) {
     ControllerHold keep(*this);LatencyTurn turn(*this);
@@ -862,29 +866,29 @@ tresult PLUGIN_API Controller::disconnect(IConnectionPoint* peer) {
 }
 tresult PLUGIN_API Controller::notify(IMessage* message) {
     ControllerHold keep(*this);LatencyTurn turn(*this);
-    if (!message || !message->getMessageID() || std::strcmp(message->getMessageID(), ProtocolV3::kMessageId))
+    if (!message || !message->getMessageID() || std::strcmp(message->getMessageID(), ProtocolV4::kMessageId))
         return kInvalidArgument;
     try {
         const void* data = nullptr; uint32 size = 0;
         auto* attributes = message->getAttributes(); Packet packet;
-        if (!attributes || attributes->getBinary(ProtocolV3::kAttribute, data, size) != kResultOk
-            || !ProtocolV3::decode(data, size, packet)) return kInvalidArgument;
+        if (!attributes || attributes->getBinary(ProtocolV4::kAttribute, data, size) != kResultOk
+            || !ProtocolV4::decode(data, size, packet)) return kInvalidArgument;
         const bool currentPeer = packet.clientEpoch == client_ && packet.processorInstance == instance_
             && packet.serverEpoch == server_;
-        const bool advance = (packet.kind == ProtocolV3::Kind::ConnectionReady && link_ == LinkStage::Discovering)
-            || (packet.kind == ProtocolV3::Kind::Snapshot
+        const bool advance = (packet.kind == ProtocolV4::Kind::ConnectionReady && link_ == LinkStage::Discovering)
+            || (packet.kind == ProtocolV4::Kind::Snapshot
                 && (link_ == LinkStage::Discovering || link_ == LinkStage::Confirming)
                 && packet.correlation == snapshotRequest_.correlation)
-            || (packet.kind == ProtocolV3::Kind::EditAck && currentPeer && flight_
+            || (packet.kind == ProtocolV4::Kind::EditAck && currentPeer && flight_
                 && packet.correlation == flight_->packet.correlation)
-            || (packet.kind == ProtocolV3::Kind::Recall && currentPeer && link_ == LinkStage::Bound
+            || (packet.kind == ProtocolV4::Kind::Recall && currentPeer && link_ == LinkStage::Bound
                 && packet.stateRevision > processorRevision_)
-            || (packet.kind == ProtocolV3::Kind::MultithreadStatus && currentPeer
+            || (packet.kind == ProtocolV4::Kind::MultithreadStatus && currentPeer
                 && packet.correlation==multithread_.request());
         const bool accepted = receivePacket(packet);
         if (accepted) {advertiseLatencyRoute();maybeNotifyLatency();}
         if (accepted && advance) {
-            if (packet.kind==ProtocolV3::Kind::MultithreadStatus) {
+            if (packet.kind==ProtocolV4::Kind::MultithreadStatus) {
                 if (link_==LinkStage::Bound && packet.clientEpoch==client_
                     && packet.processorInstance==instance_ && packet.serverEpoch==server_
                     && packet.correlation==multithread_.request()) serviceMessages(true,false,true);
@@ -897,8 +901,8 @@ bool Controller::queueError(std::string text, std::optional<FailureKey> failure,
     std::optional<uint64_t> restoreCandidate) {
     if (text.empty() || (!failure && text == lastLocalError_ && restoreCandidate == lastLocalCandidate_)) return false;
     if (error_) return false;
-    if (text.size() > ProtocolV3::kMaximumDetailBytes) {
-        size_t end = ProtocolV3::kMaximumDetailBytes;
+    if (text.size() > ProtocolV4::kMaximumDetailBytes) {
+        size_t end = ProtocolV4::kMaximumDetailBytes;
         while (end && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
         text.resize(end);
     }

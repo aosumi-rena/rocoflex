@@ -2,6 +2,7 @@
 
 #include "plugin.h"
 #include "plugin_protocol.h"
+#include "input_meter.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "pluginterfaces/vst/ivstmessage.h"
 #include "pluginterfaces/vst/ivstunits.h"
@@ -83,8 +84,8 @@ public:
     void clearEditorError(uint64_t restoreCandidate);
 
 private:
-    using Packet = ProtocolV3::Packet;
-    using Epoch = ProtocolV3::Epoch;
+    using Packet = ProtocolV4::Packet;
+    using Epoch = ProtocolV4::Epoch;
     enum class LinkStage { Disconnected, Discovering, Confirming, Bound };
     struct Flight { Packet packet; bool reload = false; };
     struct FailureKey {
@@ -126,7 +127,7 @@ private:
     PluginState state_;
     QualityChoice quality_;
     QualityChoice acceptedQuality_;
-    ProtocolV3::MultithreadClient multithread_;
+    ProtocolV4::MultithreadClient multithread_;
     std::chrono::steady_clock::time_point lastMultithreadPoll_{},lastPreferenceCheck_{},nextMultithreadRetry_{};
     uint64_t stateRevision_ = 0, changeSerial_ = 0, conditionRevision_ = 0;
     LinkStage link_ = LinkStage::Disconnected;
@@ -138,7 +139,7 @@ private:
     bool unsent_ = false, queuedReload_ = false, reloadPending_ = false;
     uint64_t reloadRevision_ = 0;
     bool servicing_ = false;
-    std::optional<ProtocolV3::LatencyDeclaration> latency_,latencyDelivered_;
+    std::optional<ProtocolV4::LatencyDeclaration> latency_,latencyDelivered_;
     uint64_t latencyRouteSerial_=1,latencyRouteRequest_=0;
     bool latencyRouteDirty_=true,latencyAdvertising_=false,latencyDispatching_=false;
     bool latencyDispatchRequested_=false,latencyFailedThisTurn_=false;
@@ -148,6 +149,7 @@ private:
     uint64_t latestAttempt_ = 0, latestStatusSequence_ = 0;
     bool meterAvailable_ = false;
     float meterEnvelope_ = 0.f;
+    PitchObservation pitchObservation_;
     uint64_t meterStream_ = 0, meterOrdinal_ = 0;
     uint64_t meterConfiguration_ = 0, meterAttempt_ = 0;
     std::chrono::steady_clock::time_point meterObserved_{}, statusIssued_{};

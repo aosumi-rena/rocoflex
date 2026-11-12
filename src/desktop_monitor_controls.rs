@@ -61,6 +61,7 @@ pub(super) struct MonitorControls {
     mode: MonitorMode,
     pregain_db: f32,
     input_level: Option<f32>,
+    pitch_sample: u64,
     pitch_semitones: f32,
     primary_input: MonitorPrimaryInput,
 }
@@ -75,13 +76,17 @@ enum MonitorMode {
 
 impl MonitorControls {
     pub(super) fn pregain_db(&self) -> f32 { self.pregain_db }
+    pub(super) fn pitch_sample(&self) -> u64 { self.pitch_sample }
     pub(super) fn pitch_semitones(&self) -> f32 { self.pitch_semitones }
+    pub(super) fn shift_pitch_octave(&mut self, amount: f32) {
+        self.pitch_semitones = (self.pitch_semitones + amount).round().clamp(-18.0, 18.0);
+    }
     pub(super) fn set_values(&mut self, pregain_db: f32, pitch_semitones: f32) {
         self.primary_input.owner = None;
         self.pregain_db = pregain_db;
         self.pitch_semitones = pitch_semitones;
     }
-    fn pitch_open(&self) -> bool { self.mode == MonitorMode::Pitch }
+    pub(super) fn pitch_open(&self) -> bool { self.mode == MonitorMode::Pitch }
     fn waypoints_open(&self) -> bool { self.mode == MonitorMode::Waypoints }
 
     fn activate(&mut self, mode: MonitorMode) {
@@ -226,6 +231,9 @@ fn monitor_pointer_position(ctx: &egui::Context, response: &egui::Response,
 
 impl DesktopApp {
 
+    pub(crate) fn set_input_pitch(&mut self, word:u64) {
+        self.monitor_controls.pitch_sample = if crate::pitch_display::valid(word) {word} else {0};
+    }
     pub(crate) fn set_input_meter(&mut self,level:Option<f32>) {
         self.monitor_controls.input_level=level;
     }

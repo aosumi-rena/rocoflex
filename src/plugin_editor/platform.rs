@@ -5,7 +5,7 @@ use windows::{core::PCWSTR, Win32::{Foundation::{HWND, WPARAM, LPARAM, LRESULT, 
     Graphics::Gdi::ClientToScreen, UI::{HiDpi::GetDpiForWindow,
         Input::KeyboardAndMouse::*, WindowsAndMessaging::*}}};
 use super::{input_queue::InputQueue, accessibility::Accessibility, ime::Ime,
-    drop_target::Registration, clipboard};
+    drop_target::Registration, clipboard, navigation};
 type Result<T> = std::result::Result<T, String>;
 
 pub(super) struct Platform {
@@ -20,6 +20,7 @@ pub(super) struct Platform {
     tracking: Cell<bool>,
     modifiers: Cell<egui::Modifiers>,
     keys: RefCell<BTreeSet<egui::Key>>,
+    navigation_keys: RefCell<navigation::NavigationKeys>,
     ime_keys: RefCell<BTreeSet<(i16, u16)>>,
     surrogate: Cell<Option<u16>>,
     cursor: Cell<HCURSOR>,
@@ -33,7 +34,7 @@ impl Platform {
         let platform = Self { hwnd, input, accessibility, ime, _drop: drop,
             zoom: Cell::new(1.0), position: Cell::new([0, 0]), buttons: Cell::new(0),
             tracking: Cell::new(false), modifiers: Cell::new(egui::Modifiers::NONE),
-            keys: RefCell::new(BTreeSet::new()), ime_keys: RefCell::new(BTreeSet::new()), surrogate: Cell::new(None),
+            keys: RefCell::new(BTreeSet::new()), navigation_keys: RefCell::new(Default::default()), ime_keys: RefCell::new(BTreeSet::new()), surrogate: Cell::new(None),
             cursor: Cell::new(HCURSOR::default()) };
         platform.refresh_geometry()?;
         Ok(platform)
@@ -54,8 +55,9 @@ impl Platform {
         Ok(())
     }
     fn set_modifiers(&self, modifiers: egui::Modifiers) {
-        if self.modifiers.replace(modifiers) != modifiers {
-            self.input.push(egui::Event::ModifiersChanged(modifiers));
+        let previous=self.modifiers.replace(modifiers);
+        if previous != modifiers {
+            self.input.push_key(egui::Event::ModifiersChanged(modifiers),false,previous.shift!=modifiers.shift);
         }
     }
     fn native_modifiers(&self) -> egui::Modifiers {
@@ -69,6 +71,16 @@ impl Platform {
         let buttons = self.buttons.replace(0);
         self.input.cancel_pointer_buttons(cause, buttons, self.pointer(), self.modifiers.get());
     }
+    /// End view-owned held keys when ownership changes while the HWND stays
+    /// focused. Remember their physical release so the host sees balanced use.
+    pub(super) fn retire_navigation_keys(&self) {
+        let keys=self.navigation_keys.borrow_mut().retire();
+        for key in keys {
+            if self.keys.borrow_mut().remove(&key) {
+                self.input.push(egui::Event::Key {key,physical_key:None,pressed:false,repeat:false,modifiers:egui::Modifiers::NONE});
+            }
+        }
+    }
     fn focus(&self, focused: bool) {
         if self.input.focused() == focused { return; }
         self.input.set_focus(focused);
@@ -79,6 +91,7 @@ impl Platform {
                 pressed: false, repeat: false, modifiers: egui::Modifiers::NONE }); }
             self.set_modifiers(egui::Modifiers::NONE);
             self.ime_keys.borrow_mut().clear();
+            self.navigation_keys.borrow_mut().clear();
             self.surrogate.set(None);
         }
     }
@@ -93,7 +106,7 @@ impl Platform {
             WM_SETFOCUS => { self.focus(true); Ok(None) }
             WM_KILLFOCUS => { self.focus(false); Ok(None) }
             WM_GETOBJECT => Ok(self.accessibility.get_object(w, l)),
-            WM_IME_STARTCOMPOSITION => { self.ime.start(); Ok(Some(LRESULT(0))) }
+            WM_IME_STARTCOMPOSITION => { self.retire_navigation_keys(); self.input.mute_navigation(); self.ime.start(); Ok(Some(LRESULT(0))) }
             WM_IME_COMPOSITION => { self.ime.composition(l.0 as u32)?; Ok(Some(LRESULT(0))) }
             WM_IME_ENDCOMPOSITION => { self.ime.end(); Ok(Some(LRESULT(0))) }
 
@@ -168,6 +181,9 @@ impl Platform {
         self.set_modifiers(modifiers);
         let key = vst_key(unicode, code);
         let identity = if code != 0 { (code, 0) } else { (0, unicode) };
+        if let Some(key)=key {
+            if self.navigation_keys.borrow_mut().consume_retired(key,down) {return Ok(true);}
+        }
         let suppressed = if down { self.ime_keys.borrow().contains(&identity) }
             else { self.ime_keys.borrow_mut().remove(&identity) };
         if suppressed {
@@ -190,14 +206,17 @@ impl Platform {
         if key.is_none() && unicode < 0x20 && !matches!(code, 54..=56) { return Ok(false); }
         let held = key.is_some_and(|key| self.keys.borrow().contains(&key));
         let shortcuts = self.input.shortcut_mask.get();
-        let waypoint_key = !modifiers.any() && !self.input.text_wanted.get()
+        let navigation = shortcuts & crate::desktop::EXPERIMENTAL_NAVIGATION_BIT != 0
+            && !self.input.text_wanted.get() && !self.input.ime_active.get()
+            && key.is_some_and(|key|navigation::navigation_key(key,modifiers));
+        let waypoint_key = !navigation && !modifiers.any() && !self.input.text_wanted.get()
             && key.is_some_and(|key| shortcuts & crate::desktop::waypoint_key_bit(key) != 0);
         let app_shortcut = key.is_some_and(|key| {
             (shortcuts & 1 != 0 && modifiers.command && matches!(key, egui::Key::O | egui::Key::S | egui::Key::Z))
                 || (shortcuts & 2 != 0 && key == egui::Key::Delete)
                 || (shortcuts & 4 != 0 && key == egui::Key::Escape && !modifiers.any())
         });
-        let handled = if down { self.input.keyboard_wanted.get() || app_shortcut || waypoint_key } else { held };
+        let handled = if down { self.input.keyboard_wanted.get() || app_shortcut || waypoint_key || navigation } else { held };
         if !handled {
             if down && key == Some(egui::Key::Escape) && !modifiers.any() {
 
@@ -206,10 +225,12 @@ impl Platform {
             return Ok(false);
         }
         if let Some(key) = key {
+            let navigation_event=navigation::navigation_candidate(key);
             let repeat = if down { !self.keys.borrow_mut().insert(key) }
                 else { self.keys.borrow_mut().remove(&key); false };
+            self.navigation_keys.borrow_mut().note(key,down,repeat,navigation);
             self.input.push_key(egui::Event::Key { key, physical_key: None, pressed: down, repeat, modifiers },
-                waypoint_key && down && !repeat);
+                waypoint_key && down && !repeat,navigation_event);
             if down && modifiers.command && !modifiers.alt {
                 match key {
                     egui::Key::C => { self.input.push(egui::Event::Copy); return Ok(true); }
@@ -219,7 +240,7 @@ impl Platform {
                 }
             }
         }
-        if down && !self.input.ime_active.get() && (!modifiers.command || modifiers.alt)
+        if down && !navigation && !self.input.ime_active.get() && (!modifiers.command || modifiers.alt)
             && unicode >= 0x20 && unicode != 0x7f
         {
             if (0xd800..=0xdbff).contains(&unicode) { self.surrogate.set(Some(unicode)); }
@@ -284,11 +305,12 @@ fn vst_key(unicode: u16, code: i16) -> Option<egui::Key> {
         1 => Some(Backspace), 2 => Some(Tab), 4 | 19 => Some(Enter), 6 => Some(Escape), 7 => Some(Space),
         9 => Some(End), 10 => Some(Home), 11 => Some(ArrowLeft), 12 => Some(ArrowUp),
         13 => Some(ArrowRight), 14 => Some(ArrowDown), 15 => Some(PageUp), 16 => Some(PageDown),
-        21 => Some(Insert), 22 => Some(Delete),
+        21 => Some(Insert), 22 => Some(Delete), 35 => Some(Plus), 37 => Some(Minus),
         40..=51 => Some([F1,F2,F3,F4,F5,F6,F7,F8,F9,F10,F11,F12][(code - 40) as usize]),
         65..=76 => Some([F13,F14,F15,F16,F17,F18,F19,F20,F21,F22,F23,F24][(code - 65) as usize]),
         _ => {
 
+            if code==0 {if let Some(key)=navigation::main_symbol(unicode) {return Some(key);}}
             let character = if code >= 128 { char::from_u32((code - 128 + 0x30) as u32) }
                 else { char::from_u32(unicode as u32) }?;
             egui::Key::from_name(&character.to_uppercase().to_string())

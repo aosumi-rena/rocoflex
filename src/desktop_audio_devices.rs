@@ -181,18 +181,18 @@ impl State {
             &[144, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 480, 512,
                 576, 640, 704, 768, 832, 896, 960, 1024, 1152, 1280, 1408, 1536,
                 1664, 1792, 1920, 2048]);
-        let row = settings_row(ui, width, "MIDI Control Device");
-        setting_value(ui, row, "MIDI Control Device", "Unavailable", "MIDI control is not connected yet.", tooltips,
-            false, SettingsValueStyle::Default);
+        if let Some(Err(error)) = &self.catalog {
+            ui.label(egui::RichText::new(error.to_string()).size(12.0).color(MUTED));
+        }
+    }
+
+    pub(super) fn stereo_ui(&mut self, ui: &mut egui::Ui, width: f32) {
         setting_choice(ui, width, "When the input is stereo", &mut self.selection.input_channel,
             |channel| match channel {
                 0 => "Use the left channel".into(),
                 1 => "Use the right channel".into(),
                 _ => "Unavailable channel".into(),
             }, &[0, 1]);
-        if let Some(Err(error)) = &self.catalog {
-            ui.label(egui::RichText::new(error.to_string()).size(12.0).color(MUTED));
-        }
     }
 }
 

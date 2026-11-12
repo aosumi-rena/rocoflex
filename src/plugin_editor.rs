@@ -3,6 +3,7 @@ mod clipboard;
 mod ime;
 mod drop_target;
 mod accessibility;
+mod navigation;
 mod platform;
 mod gpu;
 use std::{cell::{Cell, RefCell}, ffi::{c_char, c_void, CStr}, panic::{catch_unwind, AssertUnwindSafe},
@@ -131,6 +132,7 @@ struct SharedEditor {
     session: RefCell<Option<crate::editor_session::Lease<crate::desktop::CompletedEditorSession>>>,
     platform: RefCell<Option<Rc<platform::Platform>>>, gpu: RefCell<Option<Gpu>>,
     input_meter: Cell<Option<u32>>,
+    input_pitch: Cell<u64>,
 }
 impl SharedEditor {
     fn publish_key_owner(&self, app: &DesktopApp, installed: bool) {
@@ -138,8 +140,16 @@ impl SharedEditor {
             || matches!(self.phase.get(), Phase::Failed | Phase::Closing | Phase::Closed) {
             self.input.mute_waypoint_keys(); return;
         }
+        let previous=self.input.shortcut_mask.get();
         self.input.publish_shortcuts(app.plugin_shortcut_mask(&self.context),
             app.waypoint_key_owner(&self.context), installed);
+        let navigation=crate::desktop::EXPERIMENTAL_NAVIGATION_BIT;
+        if previous & navigation != 0 && (installed || self.input.shortcut_mask.get() & navigation == 0) {
+            match self.platform.try_borrow() {
+                Ok(platform)=>{if let Some(platform)=platform.as_ref(){platform.retire_navigation_keys();}},
+                Err(_)=>self.input.fail("Navigation ownership could not be retired."),
+            }
+        }
     }
     fn cancelled(&self) -> bool { self.input.is_cancelled() }
     fn cancel(&self) { self.input.cancel(); if self.phase.get() != Phase::Closed { self.phase.set(Phase::Closing); } }
@@ -203,15 +213,18 @@ impl SharedEditor {
         if self.cancelled() { return Ok(1); }
         let max_texture = self.gpu.borrow().as_ref().ok_or("Editor GPU was not initialized")?.max_texture_side();
         let input_queue::InputBatch { raw, pointer_cancellations, unhandled_escape_downs,
-            binding_epoch, binding_mixed } =
+            binding_epoch, binding_mixed, navigation_tag, navigation_mixed } =
             self.input.take_input(&self.context, self.started.elapsed().as_secs_f64(), max_texture)?;
         let binding_allowed = self.input.binding_batch_allowed(binding_epoch, binding_mixed);
+        let navigation_allowed=self.input.navigation_batch_allowed(navigation_tag,navigation_mixed);
         self.input.mute_waypoint_keys();
         let output = {
             let mut data = self.data.borrow_mut();
             if let Some(app)=&mut data.app {
                 app.set_waypoint_key_batch(binding_allowed);
+                app.set_experimental_navigation_batch(navigation_allowed);
                 app.set_input_meter(self.input_meter.get().map(f32::from_bits));
+                app.set_input_pitch(self.input_pitch.get());
             }
             let output = self.context.run_ui(raw, |ui| {
                 if let Some(app) = &mut data.app {
@@ -337,7 +350,7 @@ pub unsafe extern "C" fn roco_editor_open(plugin: *mut RocoPlugin, parent: *mut 
                 staged_restore: None, document_revision: 0, serialized_document: None,
                 paths: Default::default(), multithread: true,
                 multithread_mailbox, revision: 1, accepted_error_event: 0 }),
-            error: RefCell::new(None), platform: RefCell::new(None), gpu: RefCell::new(None), input_meter: Cell::new(None) });
+            error: RefCell::new(None), platform: RefCell::new(None), gpu: RefCell::new(None), input_meter: Cell::new(None), input_pitch: Cell::new(0) });
         Ok(Box::into_raw(Box::new(RocoEditor { shared })))
     })
 }
@@ -362,6 +375,16 @@ pub unsafe extern "C" fn roco_editor_idle(handle: *mut RocoEditor) -> i32 {
     })
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn roco_editor_set_input_pitch(handle:*mut RocoEditor,word:u64)->i32 {
+    call(-2,|| {
+        let editor=unsafe {editor(handle)}?;
+        if editor.shared.cancelled() {return Ok(0);}
+        if !crate::pitch_display::valid(word) {return Err("Invalid pitch observation.".into());}
+        if editor.shared.input_pitch.replace(word)!=word {editor.shared.input.repaint.request(Duration::ZERO);}
+        Ok(0)
+    })
+}
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn roco_editor_set_input_meter(handle:*mut RocoEditor,present:u32,envelope:f32)->i32 {
     call(-2,|| {

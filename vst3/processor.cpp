@@ -28,7 +28,7 @@ namespace Rocoflex {
 namespace {
 using namespace Steinberg;
 using namespace Steinberg::Vst;
-namespace Protocol = ProtocolV3;
+namespace Protocol = ProtocolV4;
 
 static_assert(std::is_standard_layout_v<RocoCondition>
     && std::is_trivially_copyable_v<RocoCondition>);
@@ -142,7 +142,9 @@ public:
     }
     tresult PLUGIN_API activateBus(MediaType type, BusDirection direction, int32 index, TBool enabled) override {
         if (!getBusCount(type, direction) || index != 0) return kInvalidArgument;
-        (direction == kInput ? inputActive_ : outputActive_).store(enabled != 0);
+        if (direction==kInput) {
+            if (inputActive_.exchange(enabled!=0)!=(enabled!=0)) advanceMeterEpoch(meterStream_);
+        } else {outputActive_.store(enabled!=0);}
         return kResultOk;
     }
     tresult PLUGIN_API setBusArrangements(SpeakerArrangement* inputs, int32 inputCount,
@@ -626,8 +628,11 @@ private:
         latencyRouteSerial_=request.latencyRouteSerial;latencyHandlerReady_=request.latencyHandlerReady;return true;
     }
     static void advanceMeterEpoch(std::atomic<uint64_t>& value) noexcept {
-        const auto before=value.load();
-        value.store(before && before<std::numeric_limits<uint64_t>::max()?before+1:0);
+        auto before=value.load();
+        for (;;) {
+            const auto after=before && before<std::numeric_limits<uint64_t>::max()?before+1:0;
+            if (value.compare_exchange_weak(before,after)) return;
+        }
     }
     bool publishLocked(PluginState value) {
         if (!validState(value)) return false;
@@ -761,6 +766,10 @@ private:
                 reply.meterAvailable=true; reply.meterStream=meter.stream;
                 reply.meterOrdinal=meter.ordinal; reply.meterFrames=meter.frames;
                 reply.meterEnvelopeBits=meter.envelopeBits;
+                const auto busNow=inputActive_.snapshot();
+                if ((busNow>>1)!=0 && (busNow&1)!=0 && busNow==meter.sourceBus) {
+                    reply.meterPitch=meter.pitch;reply.meterPitchOrdinal=meter.pitchOrdinal;
+                }
                 reply.meterAgeUpperMs=static_cast<uint32_t>(age);
             }
             advanceMeterEpoch(meterRequest_);
@@ -900,6 +909,7 @@ private:
         if (count > 0 && (!active_.load() || !processing_.load())) { silence(data); return kResultFalse; }
         InputMeter::Sample meterSample;
         bool meterCollected=false;
+        uint64_t pitchBusEntry=0;
         if (count > 0) {
             if (outputActive_.load()) {
                 if (data.numOutputs != 1 || !data.outputs || data.outputs[0].numChannels != outputChannels_
@@ -907,7 +917,8 @@ private:
                 for (int32 c = 0; c < outputChannels_; ++c) if (!data.outputs[0].channelBuffers32[c]) return kInvalidArgument;
             }
             for (auto& channel : input_) std::fill_n(channel.data(), count, 0.f);
-            if (inputActive_.load()) {
+            pitchBusEntry=inputActive_.snapshot();
+            if ((pitchBusEntry & 1) != 0) {
                 if (data.numInputs != 1 || !data.inputs || data.inputs[0].numChannels != inputChannels_
                     || !data.inputs[0].channelBuffers32) { silence(data); return kInvalidArgument; }
                 for (int32 c = 0; c < inputChannels_; ++c) {
@@ -934,6 +945,7 @@ private:
                 meterSample.attempt=meterEntryAttempt;
                 meterSample.connection=meterEntryConnection;
                 meterSample.stream=meterEntryStream;
+                meterSample.sourceBus=pitchBusEntry;
                 meterSample.request=meterEntryRequest;
                 meterSample.frames=static_cast<uint32_t>(count);
                 if (emptyMeter || roco_plugin_input_gain(bridge_,&gain)==kBridgeOk)
@@ -948,6 +960,8 @@ private:
                 if (++bypassPosition_ == bypassDelay_[0].size()) bypassPosition_ = 0;
             }
         }
+        RocoPitch blockPitch{};
+        bool pitchSourceChanged=false;
         int32 cursor = 0;
         do {
             int32 next = count;
@@ -965,6 +979,7 @@ private:
                     }
                     if ((id >= kPregain && id <= kToneHue) || id == kTargetMode)
                         conditionDirty_ = true;
+                    if (id==kInputChannel) pitchSourceChanged=true;
                     audioAutomationMask_ |= uint32(1) << id;
                     ++points[id];
                 }
@@ -986,7 +1001,7 @@ private:
                     const auto selected = audioState_.inputChannel;
                     calledBridge = true;
                     result = roco_plugin_process(bridge_, input_[selected].data() + cursor, nullptr,
-                        wet_[0].data() + cursor, wet_[1].data() + cursor, frames, 1, 2);
+                        wet_[0].data() + cursor, wet_[1].data() + cursor, frames, 1, 2, meterEntryStream, selected, pitchBusEntry, &blockPitch);
                 }
             }
             lastStatus_.store(result);
@@ -1014,7 +1029,14 @@ private:
         automationSequence_.fetch_add(1);
         if (count > 0 && data.numOutputs > 0 && data.outputs)
             data.outputs[0].silenceFlags = outputActive_.load() ? 0 : (outputChannels_ == 2 ? 3 : 1);
-        if (meterCollected && failedStatus_.load()>=0) inputMeter_.publish(meterSample);
+        if (meterCollected && failedStatus_.load()>=0) {
+            if (!pitchSourceChanged && (pitchBusEntry>>1)!=0 && (pitchBusEntry&1)!=0
+                && pitchBusEntry==inputActive_.snapshot() && meterEntryStream==meterStream_.load()
+                && hasConditionTarget(audioState_.condition.mode) && prepared_.load()) {
+                meterSample.pitch=blockPitch.word;meterSample.pitchOrdinal=blockPitch.ordinal;
+            }
+            inputMeter_.publish(meterSample);
+        }
         return failedStatus_.load() < 0 ? kResultFalse : kResultOk;
     }
 
@@ -1049,7 +1071,8 @@ private:
     std::shared_ptr<const PublishedState> state_;
     std::atomic<bool> active_{false}, processing_{false}, prepared_{false};
     std::atomic<uint32> audioBlockLimit_{0};
-    std::atomic<bool> inputActive_{false}, outputActive_{false};
+    InputBusState inputActive_{false};
+    std::atomic<bool> outputActive_{false};
     std::atomic<uint64_t> preparedConfiguration_{0}, automationGeneration_{~uint64_t(0)};
     std::atomic<uint64_t> automationSequence_{0};
     std::array<std::atomic<double>,8> automation_;

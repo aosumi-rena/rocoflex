@@ -24,6 +24,7 @@ pub(crate) struct CompletedEditorSession {
     native_layout: bool,
     camera: f64,
     viewport_latched: bool,
+    experimental: experimental_canvas::State,
     selected: Option<usize>,
     selected_at: Pos2,
     source_menu_cache: Option<source_menu::Cached>,
@@ -76,6 +77,7 @@ impl DesktopApp {
         let serialized = self.plugin_document()?;
         let paths = self.plugin_model_paths().map(str::to_owned);
         let (condition_available, condition_error) = self.plugin_session_condition_state();
+        self.experimental.retire_input();
         Ok(CompletedEditorSession {
             serialized, paths, accepted: accepted.clone(),
             preset: std::mem::replace(&mut self.preset, blank_preset()),
@@ -90,6 +92,7 @@ impl DesktopApp {
             source_for_anchor: std::mem::take(&mut self.source_for_anchor),
             revision: self.revision, mapping: self.mapping, native_layout: self.native_layout,
             camera: self.camera, viewport_latched: self.viewport_latched,
+            experimental: std::mem::take(&mut self.experimental),
             selected: self.selected, selected_at: self.selected_at,
             source_menu_cache: self.source_menu_cache,
             allow_canvas_editing: self.allow_canvas_editing,
@@ -117,6 +120,7 @@ impl DesktopApp {
         self.source_for_curve = value.source_for_curve; self.source_for_anchor = value.source_for_anchor;
         self.revision = value.revision; self.mapping = value.mapping; self.native_layout = value.native_layout;
         self.camera = value.camera; self.viewport_latched = value.viewport_latched;
+        self.experimental = value.experimental;
         self.selected = value.selected; self.selected_at = value.selected_at;
         self.source_menu_cache = value.source_menu_cache;
         self.allow_canvas_editing = value.allow_canvas_editing;

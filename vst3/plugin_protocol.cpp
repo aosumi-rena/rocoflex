@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-namespace Rocoflex::ProtocolV3 {
+namespace Rocoflex::ProtocolV4 {
 namespace {
 void word(std::vector<uint8_t>& bytes, uint32_t value) {
     for (unsigned i = 0; i < 4; ++i) bytes.push_back(static_cast<uint8_t>(value >> (8 * i)));
@@ -36,7 +36,13 @@ bool utf8(const std::string& text) {
 bool statusCode(int32_t code) { return code >= -3 && code <= 2; }
 bool meterValid(const Packet& p) {
     if (!p.meterAvailable) return !p.meterStream && !p.meterOrdinal
-        && !p.meterFrames && !p.meterEnvelopeBits && !p.meterAgeUpperMs;
+        && !p.meterFrames && !p.meterEnvelopeBits && !p.meterAgeUpperMs && !p.meterPitch && !p.meterPitchOrdinal;
+    if (p.meterPitch) {
+        if (!p.meterPitchOrdinal) return false;
+        if (p.meterPitch>>34 || !(p.meterPitch&(uint64_t(1)<<33))) return false;
+        const uint32_t bits=uint32_t(p.meterPitch); float note; std::memcpy(&note,&bits,4);
+        if (!std::isfinite(note) || (!(p.meterPitch&(uint64_t(1)<<32)) && note<=0.f)) return false;
+    }
     float value; std::memcpy(&value,&p.meterEnvelopeBits,sizeof(value));
     return p.meterStream && p.meterOrdinal && p.meterFrames && p.meterFrames<=65536 && p.meterAgeUpperMs<=100
         && std::isfinite(value) && value>=0.f;
@@ -193,7 +199,7 @@ bool encode(const Packet& p, std::vector<uint8_t>& output) {
             word(bytes,p.meterAvailable?1:0);
             if (p.meterAvailable) {
                 wide(bytes,p.meterStream); wide(bytes,p.meterOrdinal);
-                word(bytes,p.meterFrames); word(bytes,p.meterEnvelopeBits); word(bytes,p.meterAgeUpperMs);
+                word(bytes,p.meterFrames); word(bytes,p.meterEnvelopeBits); word(bytes,p.meterAgeUpperMs); wide(bytes,p.meterPitch); wide(bytes,p.meterPitchOrdinal);
             }
             break;
         }
@@ -269,7 +275,7 @@ bool decode(const void* data, size_t size, Packet& output) {
             if (!r.word(available) || available>1) return false;
             p.meterAvailable=available!=0;
             if (p.meterAvailable && (!r.wide(p.meterStream) || !r.wide(p.meterOrdinal)
-                || !r.word(p.meterFrames) || !r.word(p.meterEnvelopeBits) || !r.word(p.meterAgeUpperMs))) return false;
+                || !r.word(p.meterFrames) || !r.word(p.meterEnvelopeBits) || !r.word(p.meterAgeUpperMs) || !r.wide(p.meterPitch) || !r.wide(p.meterPitchOrdinal))) return false;
             if (!meterValid(p)) return false;
             break;
         }

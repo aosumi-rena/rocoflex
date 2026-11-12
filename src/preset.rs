@@ -35,15 +35,23 @@ pub struct Preset {
 pub(crate) struct Waypoint {
     pub route: u64,
     pub xy: [f64; 2],
+    pub z: f64,
 }
 
 pub(crate) fn waypoints(document: &Value) -> Result<Vec<Waypoint>> {
     let voice = document.get("voice").unwrap_or(document);
-    let Some(value) = voice.get("waypoints") else { return Ok(Vec::new()); };
-    let rows = value.as_array().ok_or("Invalid waypoint list")?;
+    let rows: &[Value] = match voice.get("waypoints") {
+        Some(value) => value.as_array().ok_or("Invalid waypoint list")?,
+        None => &[],
+    };
     if rows.len() > 256 { return Err("Too many waypoints".into()); }
+    let depths = match document.get("rocoflexExperimentalCanvas").and_then(|v| v.get("waypointZ")) {
+        Some(value) => Some(value.as_array().filter(|values| values.len() == rows.len())
+            .ok_or("Invalid experimental waypoint depths")?),
+        None => None,
+    };
     let mut result: Vec<Waypoint> = Vec::with_capacity(rows.len());
-    for row in rows {
+    for (index, row) in rows.iter().enumerate() {
         let route = row.get("id").and_then(Value::as_u64)
             .filter(|id| *id > 0).ok_or("Invalid waypoint route")?;
         if result.iter().any(|point| point.route == route) {
@@ -55,7 +63,11 @@ pub(crate) fn waypoints(document: &Value) -> Result<Vec<Waypoint>> {
             *dst = row.get(key).and_then(Value::as_f64).filter(|v| v.is_finite())
                 .ok_or("Invalid waypoint position")?;
         }
-        result.push(Waypoint { route, xy });
+        let z = if let Some(depths) = depths {
+            depths[index].as_f64().filter(|z| z.is_finite() && (-2.0..=2.0).contains(z))
+                .ok_or("Invalid experimental waypoint depth")?
+        } else { 0.0 };
+        result.push(Waypoint { route, xy, z });
     }
     Ok(result)
 }
@@ -75,8 +87,52 @@ fn payload(v: &Value, key: &str, width: usize) -> Result<Vec<f32>> {
     )
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ExperimentalCanvasMetadata {
+    pub enabled: bool,
+    pub probe_z: f64,
+    pub depth_axis: Option<[f64; 4]>,
+    pub fixed_scale: Option<f64>,
+    pub mover_enabled: bool,
+}
+
+/// Validate optional private experimental metadata without changing legacy
+/// documents or any source/embedding payloads.
+pub(crate) fn experimental_canvas_metadata(document: &Value) -> Result<Option<ExperimentalCanvasMetadata>> {
+    let Some(value)=document.get("rocoflexExperimentalCanvas") else {return Ok(None);};
+    if value.get("version").and_then(Value::as_u64)!=Some(1) {return Err("Unsupported experimental canvas version".into());}
+    let enabled=value.get("enabled3d").and_then(Value::as_bool).ok_or("Invalid experimental canvas mode")?;
+    let probe_z=value.get("probeZ").and_then(Value::as_f64)
+        .filter(|z|z.is_finite() && (-2.0..=2.0).contains(z)).ok_or("Invalid experimental probe depth")?;
+    let depth_axis=match value.get("depthAxis") {
+        None | Some(Value::Null)=>None,
+        Some(Value::Array(values)) if values.len()==4=>{
+            let mut axis=[0.0;4];
+            for (out,input) in axis.iter_mut().zip(values) {
+                *out=input.as_f64().filter(|v|v.is_finite() && v.abs()<=1.000001)
+                    .ok_or("Invalid experimental depth axis")?;
+            }
+            let norm:f64=axis.iter().map(|v|v*v).sum();
+            if !(0.999..=1.001).contains(&norm) {return Err("Invalid experimental depth axis length".into());}
+            Some(axis)
+        }
+        _=>return Err("Invalid experimental depth axis".into()),
+    };
+    let fixed_scale=match value.get("fixedScale") {
+        None | Some(Value::Null)=>None,
+        Some(scale)=>Some(scale.as_f64().filter(|n|n.is_finite() && (10.0..=500.0).contains(n))
+            .ok_or("Invalid experimental canvas scale")?),
+    };
+    let mover_enabled=match value.get("probeMover") {
+        None=>false,
+        Some(on)=>on.as_bool().ok_or("Invalid experimental Probe Mover setting")?,
+    };
+    Ok(Some(ExperimentalCanvasMetadata {enabled,probe_z,depth_axis,fixed_scale,mover_enabled}))
+}
+
 impl Preset {
     pub fn parse(document: Value) -> Result<Self> {
+        experimental_canvas_metadata(&document)?;
         waypoints(&document)?;
         let voice = document.get("voice").unwrap_or(&document);
         let array = voice["sources"]

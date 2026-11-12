@@ -213,51 +213,7 @@ impl DesktopApp {
         self.preset_paths_ui(ui);
         if !self.resources_available() { return; }
         divider(ui);
-        heading(ui, "Canvas", "");
-        let selected = self.selected.filter(|index| *index < self.preset.sources.len());
-        ui.horizontal(|ui| {
-            ui.label("Selected source");
-            let response = resource_button_raw(ui, "Display color…",
-                selected.is_some() && self.editor.is_none() && !self.color_picker);
-            if response.clicked()
-                && let Some(selected) = selected
-            {
-                response.surrender_focus();
-                self.settings = false;
-                self.begin_color(Some(selected));
-            }
-        });
-        if !self.resources_available() { return; }
-        let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
-        ui.painter().text(row.left_center(), Align2::LEFT_CENTER, "Allow dragging sources and labels",
-            FontId::proportional(13.0), TEXT);
-        let check = Rect::from_center_size(pos2(row.right() - 12.0, row.center().y), vec2(24.0, 24.0));
-        let enabled = self.resources_available();
-        controls::settings_check_raw(ui, check, "allow-canvas-editing", "Allow dragging sources and labels",
-            &mut self.allow_canvas_editing, enabled);
-        let before = self.mapping;
-        ui.horizontal(|ui| {
-            let label = ui.label("Layout mapping");
-
-            let mapping_available = ui.is_enabled() && !message_open && self.resources_available();
-            let response = egui::ComboBox::from_id_salt("inspection-mapping")
-                .icon(controls::settings_combo_icon)
-                .selected_text(match self.mapping { 0 => "Automatic", 1 => "Reduced dimensions", _ => "Stored basis" })
-                .show_ui(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    ui.add_enabled_ui(mapping_available, |ui| {
-                        for (value, label) in [(0, "Automatic"), (1, "Reduced dimensions"), (2, "Stored basis")] {
-                            if controls::settings_option_raw(ui, label, self.mapping == value).clicked() { self.mapping = value; }
-                        }
-                    });
-                });
-            let _ = response.response.labelled_by(label.id);
-        });
-        if before != self.mapping && self.resources_available() { self.rebuild(); }
-        ui.label(egui::RichText::new("Canvas options are not saved between sessions.").size(12.0).color(MUTED));
-        if !self.native_layout && let Some(status) = &self.layout_status {
-            ui.label(egui::RichText::new(status).size(12.0).color(MUTED));
-        }
+        self.experimental_features_ui(ui);
     }
 
     fn preset_paths_ui(&mut self, ui: &mut egui::Ui) {

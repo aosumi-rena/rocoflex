@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 use eframe::egui;
+use super::navigation::{NavigationEpoch,NavigationTag};
 use crate::desktop::canvas_gesture::{PointerCancellation, PointerCancellationCause, UnhandledEscapeDown, POINTER_BUTTONS};
 
 pub(super) struct InputBatch {
@@ -12,6 +13,8 @@ pub(super) struct InputBatch {
     pub unhandled_escape_downs: Vec<UnhandledEscapeDown>,
     pub binding_epoch: Option<u64>,
     pub binding_mixed: bool,
+    pub navigation_tag: Option<NavigationTag>,
+    pub navigation_mixed: bool,
 }
 
 #[derive(Default)]
@@ -46,6 +49,8 @@ struct Events {
     dropped: Vec<egui::DroppedFileHandle>,
     binding_epoch: Option<u64>,
     binding_mixed: bool,
+    navigation_tag: Option<NavigationTag>,
+    navigation_mixed: bool,
 }
 pub(super) struct InputQueue {
     pending: RefCell<Events>,
@@ -64,6 +69,7 @@ pub(super) struct InputQueue {
     binding_epoch: Cell<Option<u64>>,
     binding_owner: Cell<Option<(u64,u64,u8)>>,
     binding_mask: Cell<u64>,
+    navigation: Cell<NavigationEpoch>,
     pub paste_requested: Cell<bool>,
 }
 impl InputQueue {
@@ -79,10 +85,15 @@ impl InputQueue {
             keyboard_wanted: Cell::new(false), text_wanted: Cell::new(false),
             ime_active: Cell::new(false),
             shortcut_mask: Cell::new(0), binding_epoch: Cell::new(Some(0)),
-            binding_owner: Cell::new(None), binding_mask: Cell::new(0), paste_requested: Cell::new(false),
+            binding_owner: Cell::new(None), binding_mask: Cell::new(0),
+            navigation:Cell::new(Default::default()), paste_requested: Cell::new(false),
         }
     }
-    pub fn cancel(&self) { self.mute_waypoint_keys(); self.cancelled.store(true, Ordering::Release); }
+    pub fn cancel(&self) { self.mute_waypoint_keys(); self.mute_navigation(); self.cancelled.store(true, Ordering::Release); }
+    pub fn mute_navigation(&self) {
+        let mut navigation=self.navigation.get();navigation.mute();self.navigation.set(navigation);
+        self.shortcut_mask.set(self.shortcut_mask.get() & !crate::desktop::EXPERIMENTAL_NAVIGATION_BIT);
+    }
     pub fn mute_waypoint_keys(&self) {
         self.shortcut_mask.set(self.shortcut_mask.get() & !crate::desktop::WAYPOINT_KEY_BITS);
     }
@@ -95,7 +106,16 @@ impl InputQueue {
         }
         let enabled = self.binding_epoch.get().is_some() && owner.is_some() && !self.is_cancelled()
             && self.fault().is_none();
-        self.shortcut_mask.set((mask & !crate::desktop::WAYPOINT_KEY_BITS) | if enabled { keys } else { 0 });
+        let nav_bit=crate::desktop::EXPERIMENTAL_NAVIGATION_BIT;
+        let wanted=mask & nav_bit!=0 && self.focused() && !self.text_wanted.get() && !self.ime_active.get()
+            && !self.is_cancelled() && self.fault().is_none();
+        let mut owner=self.navigation.get();
+        let navigation=owner.publish(wanted,installed);self.navigation.set(owner);
+        self.shortcut_mask.set((mask & !(crate::desktop::WAYPOINT_KEY_BITS|nav_bit))
+            | if enabled { keys } else { 0 } | if navigation { nav_bit } else { 0 });
+    }
+    pub fn navigation_batch_allowed(&self,tag:Option<NavigationTag>,mixed:bool)->bool {
+        !self.is_cancelled() && self.fault().is_none() && self.navigation.get().accepts(tag,mixed)
     }
     pub fn binding_batch_allowed(&self, epoch: Option<u64>, mixed: bool) -> bool {
         !self.is_cancelled() && self.fault().is_none() && !mixed
@@ -104,14 +124,14 @@ impl InputQueue {
     pub fn is_cancelled(&self) -> bool { self.cancelled.load(Ordering::Acquire) }
     pub fn fault(&self) -> Option<&'static str> { self.fault.get() }
     pub fn fail(&self, message: &'static str) {
-        self.mute_waypoint_keys();
+        self.mute_waypoint_keys(); self.mute_navigation();
         if self.fault.get().is_none() { self.fault.set(Some(message)); }
         self.repaint.request(Duration::ZERO);
     }
     pub fn push(&self, event: egui::Event) -> bool {
-        self.push_key(event, false)
+        self.push_key(event, false, false)
     }
-    pub fn push_key(&self, event: egui::Event, bound_fresh_down: bool) -> bool {
+    pub fn push_key(&self, event: egui::Event, bound_fresh_down: bool, navigation_event: bool) -> bool {
         if self.is_cancelled() { return false; }
         let Ok(mut pending) = self.pending.try_borrow_mut() else {
             self.fail("Native input queue was reentered while borrowed."); return false;
@@ -127,6 +147,11 @@ impl InputQueue {
         {
             if pending.binding_epoch.is_some_and(|previous| previous != epoch) { pending.binding_mixed = true; }
             pending.binding_epoch.get_or_insert(epoch);
+        }
+        if navigation_event {
+            let tag=self.navigation.get().tag();
+            if pending.navigation_tag.is_some_and(|prior|prior!=tag) {pending.navigation_mixed=true;}
+            pending.navigation_tag.get_or_insert(tag);
         }
         pending.events.push(event);
         self.repaint.request(Duration::ZERO);
@@ -227,7 +252,7 @@ impl InputQueue {
         self.focused.set(focused);
         self.push(egui::Event::WindowFocused(focused));
         if !focused {
-            self.mute_waypoint_keys();
+            self.mute_waypoint_keys(); self.mute_navigation();
             self.binding_epoch.set(self.binding_epoch.get().and_then(|epoch| epoch.checked_add(1)));
             self.push(egui::Event::PointerGone);
             self.ime_active.set(false);
@@ -249,6 +274,8 @@ impl InputQueue {
         let unhandled_escape_downs = std::mem::take(&mut pending.unhandled_escape_downs);
         let binding_epoch = pending.binding_epoch.take();
         let binding_mixed = std::mem::take(&mut pending.binding_mixed);
+        let navigation_tag=pending.navigation_tag.take();
+        let navigation_mixed=std::mem::take(&mut pending.navigation_mixed);
         let dropped_files = std::mem::take(&mut pending.dropped);
         let hovered_files = pending.hovered.clone();
         drop(pending);
@@ -270,7 +297,8 @@ impl InputQueue {
             focused: Some(self.focused.get()), minimized: Some(width == 0 || height == 0),
             ..Default::default()
         });
-        Ok(InputBatch { raw: input, pointer_cancellations, unhandled_escape_downs, binding_epoch, binding_mixed })
+        Ok(InputBatch { raw: input, pointer_cancellations, unhandled_escape_downs, binding_epoch, binding_mixed,
+            navigation_tag,navigation_mixed })
     }
 }
 

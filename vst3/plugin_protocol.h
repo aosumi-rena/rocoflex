@@ -4,12 +4,12 @@
 #include <array>
 #include <limits>
 
-namespace Rocoflex::ProtocolV3 {
+namespace Rocoflex::ProtocolV4 {
 
-inline constexpr char kMessageId[] = "Rocoflex.Protocol.v3";
+inline constexpr char kMessageId[] = "Rocoflex.Protocol.v4";
 inline constexpr char kAttribute[] = "packet";
-inline constexpr uint32_t kMagic = 0x33564352;
-inline constexpr uint32_t kVersion = 3;
+inline constexpr uint32_t kMagic = 0x34564352;
+inline constexpr uint32_t kVersion = 4;
 inline constexpr size_t kMaximumDetailBytes = 16384;
 inline constexpr size_t kMaximumPacketBytes = kMaximumStateBytes + 192;
 using Epoch = std::array<uint8_t, 16>;
@@ -68,6 +68,7 @@ struct Packet {
     bool meterAvailable = false;
     uint64_t meterStream = 0, meterOrdinal = 0;
     uint32_t meterFrames = 0, meterEnvelopeBits = 0, meterAgeUpperMs = 0;
+    uint64_t meterPitch = 0, meterPitchOrdinal = 0;
 };
 
 class MultithreadServer final {

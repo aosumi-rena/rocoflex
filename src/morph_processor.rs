@@ -74,7 +74,7 @@ impl MorphProcessor {
         let render:MonoRender=Box::new(move |input,output| {
             let pending=meter.begin_block(input,&gain);
             let result=graph.process(input,output,&mut gain);
-            if result.is_ok() {meter.finish_block(pending);}
+            if result.is_ok() {meter.finish_block_with_pitch(pending,graph.pitch_sample());}
             result
         });
         Self {inner:crate::live_audio::MonoProcessor::new(input_channel,render)}
@@ -250,6 +250,8 @@ impl PluginProcessor {
     }
 
     pub(crate) fn prepared_latency(&self)->PreparedLatency {self.prepared_latency}
+    pub(crate) fn pitch_sample(&self)->crate::pitch_display::Observation {self.graph.pitch_sample()}
+    pub(crate) fn set_pitch_source(&mut self,epoch:u64,channel:u32,bus:u64) {self.graph.set_pitch_source(epoch,channel,bus);}
 
     pub(crate) fn has_condition(&mut self)->bool {
         let available=self.availability.poll().is_some();

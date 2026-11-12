@@ -190,6 +190,7 @@ pub mod tone;
 pub mod pitch_spectral_encoder;
 pub mod pitch_audio_spectrum;
 pub mod pitch_selected_head;
+pub(crate) mod pitch_display;
 
 pub mod generation_curve;
 pub mod source_pitch_join;

@@ -238,6 +238,7 @@ impl DesktopApp {
         #[cfg(windows)]
         {
         let mut level=None;
+        let mut pitch=0;
         if let Some(session) = &mut self.live.session {
             if ctx.input(|input| input.viewport().close_requested()) { session.stop(); }
             let finished = session.poll_finished();
@@ -259,11 +260,14 @@ impl DesktopApp {
                 let receiving=self.live.snapshot.as_ref().is_some_and(|snapshot|
                     matches!(snapshot.phase,crate::live_audio::Phase::Receiving|crate::live_audio::Phase::Running)
                     && snapshot.error.is_none());
-                if receiving && let Some(query)=&mut self.live.meter {level=query.poll();}
+                if receiving && let Some(query)=&mut self.live.meter {
+                    if let Some(observation)=query.poll_observation() {level=Some(observation.level);pitch=observation.pitch.word;}
+                }
                 ctx.request_repaint_after(Duration::from_millis(33));
             }
         }
         self.set_input_meter(level);
+        self.set_input_pitch(pitch);
         }
         #[cfg(not(windows))]
         let _ = ctx;
@@ -411,12 +415,18 @@ impl DesktopApp {
         let result = if tone_preview {
             self.live.bus.publish_tone_preview(self.tone_controls(), parameters)
         } else {
-            let selection = match &self.layout_view {
-                Some(view) => view.mix.as_ref().ok_or_else(||
-                    "The current canvas has no completed pre-display controller mix.".to_owned())
-                    .and_then(|mix| self.live.canvas_mix_cache.get_or_build(self.revision, mix, parameters,
-                        || crate::prototype_controls::from_controller_mix(&self.preset, mix, parameters))),
-                None => Err("Live conditioning requires the original controller mix, not an inspection-mode distance blend.".into()),
+            let selection = if self.experimental.enabled {
+                self.experimental_mix().and_then(|mix| self.live.canvas_mix_cache.get_or_build(
+                    self.revision, &mix, parameters,
+                    || crate::prototype_controls::from_controller_mix(&self.preset, &mix, parameters)))
+            } else {
+                match &self.layout_view {
+                    Some(view) => view.mix.as_ref().ok_or_else(||
+                        "The current canvas has no completed pre-display controller mix.".to_owned())
+                        .and_then(|mix| self.live.canvas_mix_cache.get_or_build(self.revision, mix, parameters,
+                            || crate::prototype_controls::from_controller_mix(&self.preset, mix, parameters))),
+                    None => Err("Live conditioning requires the original controller mix, not an inspection-mode distance blend.".into()),
+                }
             };
             selection.map(|mut snapshot| {
                 if let Some(embedding) = self.live.restored_canvas() {

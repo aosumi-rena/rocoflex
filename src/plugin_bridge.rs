@@ -78,6 +78,12 @@ fn prepare_audio_buffers(frames:usize)->Result<(Vec<f32>,Vec<f32>)> {
     let mut output=Vec::new();output.try_reserve_exact(frames).map_err(|e|e.to_string())?;output.resize(frames,0.);
     Ok((input,output))
 }
+#[repr(C)]
+#[derive(Clone,Copy,Default)]
+pub struct RocoPitch {pub word:u64,pub ordinal:u64}
+const _: [();16]=[();std::mem::size_of::<RocoPitch>()];
+const _: [();8]=[();std::mem::align_of::<RocoPitch>()];
+
 struct Ready {
     processor:PluginProcessor,
     input_channel:usize,
@@ -97,6 +103,7 @@ pub struct RocoPlugin {
     ready:Mutex<Runtime>,
     error:Mutex<String>,
     panicked:AtomicBool,
+
 }
 
 struct Failure(i32,String);
@@ -313,9 +320,10 @@ pub unsafe extern "C" fn roco_plugin_input_gain(handle:*const RocoPlugin,value:*
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn roco_plugin_process(handle:*mut RocoPlugin,
     in_left:*const f32,in_right:*const f32,out_left:*mut f32,out_right:*mut f32,
-    frames:u32,input_channels:u32,output_channels:u32)->i32
+    frames:u32,input_channels:u32,output_channels:u32,source_epoch:u64,source_channel:u32,source_bus:u64,pitch_out:*mut RocoPitch)->i32
 {
-
+    if !pitch_out.is_null() {unsafe {pitch_out.write(RocoPitch::default());}}
+    let collect_pitch=!pitch_out.is_null() && source_epoch!=0 && source_channel<=1 && source_bus>>1!=0 && source_bus&1!=0;
     let Some(plugin)=(unsafe {handle.as_ref()}) else {return INVALID;};
     let _fp=HostFpEnvironment::enter();
     plugin.call(||{
@@ -354,7 +362,13 @@ pub unsafe extern "C" fn roco_plugin_process(handle:*mut RocoPlugin,
         if !ready.processor.has_condition() {
             return Err(Failure(NOT_READY,"Select a canvas voice or Tone preview before processing.".into()));
         }
+        if collect_pitch {ready.processor.set_pitch_source(source_epoch,source_channel,source_bus);}
+        else {ready.processor.set_pitch_source(0,0,0);}
         ready.processor.process(&ready.input[..count],&mut ready.output[..count],gain).map_err(failed)?;
+        if collect_pitch {
+            let pitch=ready.processor.pitch_sample();
+            unsafe {pitch_out.write(RocoPitch{word:pitch.word,ordinal:pitch.ordinal});}
+        }
 
         unsafe {
             ptr::copy_nonoverlapping(ready.output.as_ptr(),out_left,count);

@@ -13,6 +13,20 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "desktop_input_preferences.rs"]
+mod input_preferences;
+#[path = "desktop_input_publication.rs"]
+mod input_publication;
+#[path = "desktop_midi_match.rs"]
+mod midi_match;
+#[path = "desktop_shortcuts.rs"]
+mod shortcuts;
+#[cfg(windows)]
+#[path = "desktop_midi_port.rs"]
+mod midi_port;
+#[cfg(windows)]
+#[path = "desktop_midi.rs"]
+mod midi;
 #[path = "desktop_audio.rs"]
 mod audio;
 #[path = "desktop_audio_decode.rs"]
@@ -22,8 +36,14 @@ mod audio_decode;
 mod audio_devices;
 #[path = "desktop_canvas_state.rs"]
 mod canvas_state;
+#[path = "desktop_experimental_math.rs"]
+mod experimental_math;
+#[path = "desktop_experimental_canvas.rs"]
+mod experimental_canvas;
 #[path = "desktop_captions.rs"]
 mod captions;
+#[path = "desktop_pitch_display.rs"]
+mod pitch_display_ui;
 #[path = "desktop_controls.rs"]
 mod controls;
 #[path = "desktop_resources.rs"]
@@ -51,9 +71,13 @@ mod library;
 mod localization;
 #[path = "desktop_monitor_controls.rs"]
 mod monitor;
+#[path = "desktop_waypoint_bindings.rs"]
+mod waypoint_bindings;
 #[path = "desktop_waypoints.rs"]
 mod waypoints;
 pub(crate) use waypoints::{key_bit as waypoint_key_bit, ALL_KEY_BITS as WAYPOINT_KEY_BITS};
+/// Published to the native VST editor only while 3D owns navigation.
+pub(crate) const EXPERIMENTAL_NAVIGATION_BIT: u64 = 1u64 << 39;
 #[path = "desktop_live.rs"]
 mod live;
 #[path = "desktop_host_restore.rs"]
@@ -187,6 +211,7 @@ enum Menu {
 #[derive(Clone, Copy, PartialEq)]
 enum Edit {
     WaypointKey(usize),
+    WaypointMidi(usize),
     SourceName(usize),
     PresetName,
     SaveAs,
@@ -240,8 +265,12 @@ pub struct DesktopApp {
     revision: u64,
     camera: f64,
     viewport_latched: bool,
+    experimental: experimental_canvas::State,
     source_camera: Option<source_camera::Cached>,
     monitor_controls: monitor::MonitorControls,
+    shortcuts: shortcuts::State,
+    #[cfg(windows)]
+    midi_input: midi::State,
     live: live::Controller,
     settings: bool,
     settings_resources: bool,
@@ -389,8 +418,12 @@ impl DesktopApp {
             revision: 0,
             camera: 1.0,
             viewport_latched: false,
+            experimental: experimental_canvas::State::default(),
             source_camera: None,
             monitor_controls: monitor::MonitorControls::default(),
+            shortcuts: shortcuts::State::default(),
+            #[cfg(windows)]
+            midi_input: midi::State::default(),
             live: live::Controller::default(),
             settings: false,
             settings_resources: false,
@@ -506,10 +539,12 @@ impl DesktopApp {
             && !self.settings && !self.color_picker && self.error.is_none() && self.notice.is_none();
         let escape = self.error.is_some() || self.notice.is_some()
             || (self.editor.is_none() && !self.settings && !egui::Popup::is_any_open(ctx)
-                && (self.color_picker || self.menu.is_some() || self.drag.is_some() || self.waypoint_active()))
-            || matches!(self.editor, Some(Edit::WaypointKey(_)));
+                && (self.color_picker || self.menu.is_some() || self.drag.is_some() || self.waypoint_active()
+                    || self.experimental.has_axis_drag()))
+            || matches!(self.editor, Some(Edit::WaypointKey(_) | Edit::WaypointMidi(_)));
         u64::from(global) | (u64::from(global && self.selected.is_some()) << 1)
             | (u64::from(escape) << 2) | self.waypoint_key_mask(ctx)
+            | if self.experimental_canvas_navigation_active(ctx) {EXPERIMENTAL_NAVIGATION_BIT} else {0}
     }
 
     pub(crate) fn try_report_plugin_error(&mut self, message: &str) -> bool {
@@ -597,6 +632,7 @@ impl DesktopApp {
             return Ok(());
         }
         let doc = serde_json::from_str(&text).map_err(|e| format!("Invalid preset: {e}"))?;
+        library::validate_preset_kind(&path,&doc)?;
         let preset = Preset::parse(doc)?;
         if !self.install(preset) {
             if let Some(pending) = &mut self.pending_layout {
@@ -710,10 +746,16 @@ impl DesktopApp {
         v["probeLocationX"] = json!(self.probe.position.x);
         v["probeLocationY"] = json!(self.probe.position.y);
         v["probeRadius"] = json!(self.probe.radius);
+        if self.experimental.enabled {self.experimental_store_document();}
         self.changed();
         true
     }
     fn latch_viewport(&mut self) -> bool {
+        if self.experimental.enabled || self.experimental.fixed_scale {
+            let scale = if self.experimental.fixed_scale { self.experimental.scale_percent / 100.0 } else { 1.0 };
+            if !scale.is_finite() || scale <= 0.0 { return false; }
+            self.camera = scale; self.viewport_latched = true; return true;
+        }
 
         if let Some(camera) = source_camera::Cached::update(&mut self.source_camera,
             [self.probe.position.x as f32, self.probe.position.y as f32])
@@ -777,6 +819,7 @@ impl DesktopApp {
     }
 
     fn rebuild_scene(&mut self) {
+        self.experimental.invalidate_geometry();
         self.cache_key = None;
         self.revision = self.revision.wrapping_add(1);
         let native = if self.mapping == 0 {
@@ -911,7 +954,8 @@ impl DesktopApp {
         Ok(self.publish_append(source))
     }
     fn export(&mut self) {
-        let name = format!("{}.json", safe_filename(&self.preset.name));
+        let experimental = self.experimental_preset_output();
+        let name = library::preset_filename(&self.preset.name, experimental);
         let mut dialog = rfd::FileDialog::new()
             .add_filter("Preset JSON", &["json"])
             .set_file_name(name);
@@ -920,9 +964,9 @@ impl DesktopApp {
         }
         if let Some(path) = dialog.save_file() {
             match self.prepare_saved_snapshot(None).and_then(|snapshot| {
-                fs::write(&path, &snapshot.serialized)
-                    .map(|_| snapshot)
-                    .map_err(|e| e.to_string())
+                snapshot.validate_destination(&path)?;
+                library::write_exported_preset(&path, snapshot.as_ref(), self.experimental_save_requires_copy())?;
+                Ok(snapshot)
             }) {
                 Ok(snapshot) => {
                     self.commit_saved_snapshot(snapshot);
@@ -941,6 +985,10 @@ impl DesktopApp {
     fn preset_needs_name(&self) -> bool {
         self.path.is_none() && self.preset.name == "My Preset"
     }
+    fn experimental_save_requires_copy(&self) -> bool {
+        self.experimental_preset_output()
+            || self.path.as_deref().is_some_and(library::is_experimental_preset_path)
+    }
     fn save_library(&mut self, name: String, rename: bool) -> Result<()> {
         if self.layout_blocked() && name != self.preset.name {
             return Err("Discard the retained canvas change before renaming this preset.".into());
@@ -949,21 +997,28 @@ impl DesktopApp {
         if name.is_empty() || (name == "My Preset" && !preserves_loaded_name) {
             return Err("Give this preset a name first.".into());
         }
-        let renamed = name != self.preset.name;
-        let snapshot = self.prepare_saved_snapshot(Some(&name))?;
-        let same = self.path.as_ref().filter(|path|
-            library::contains_preset(&self.preset_paths, &self.library_dir, path)).cloned();
-        if rename && self.path.is_some() && same.is_none() {
+        let experimental = self.experimental_preset_output();
+        let overwrite = rename && !self.experimental_save_requires_copy();
+        let same = self.path.as_ref().filter(|path| overwrite &&
+            library::contains_preset(&self.preset_paths, &self.library_dir, path));
+        if overwrite && self.path.is_some() && same.is_none() {
             return Err("The preset is outside the configured preset folders or is no longer available.".into());
         }
         fs::create_dir_all(&self.library_dir).map_err(|e| e.to_string())?;
-        let path = if rename && let Some(path) = same {
-            fs::write(&path, &snapshot.serialized).map_err(|e| e.to_string())?;
-            path
+        let (path, snapshot) = if let Some(path) = same {
+            let snapshot = self.prepare_saved_snapshot(Some(&name))?;
+            snapshot.validate_destination(path)?;
+            fs::write(path, &snapshot.serialized).map_err(|e| e.to_string())?;
+            (path.clone(), snapshot)
         } else {
-            library::publish_new_preset(&self.library_dir, &name, |_| Ok(&snapshot))?.0
+            library::publish_new_preset(&self.library_dir, &name, experimental, |candidate| {
+                let snapshot = self.prepare_saved_snapshot(Some(candidate))?;
+                let path = self.library_dir.join(library::preset_filename(candidate, experimental));
+                snapshot.validate_destination(&path)?;
+                Ok(snapshot)
+            })?
         };
-        if renamed {
+        if snapshot.name() != self.preset.name {
             self.audio_destination_changed();
         }
         self.commit_saved_snapshot(snapshot);
@@ -981,7 +1036,7 @@ impl DesktopApp {
         Ok(())
     }
     fn save_current(&mut self) {
-        if self.preset_needs_name() {
+        if self.preset_needs_name() || self.experimental_save_requires_copy() {
             self.begin_edit(Edit::SaveAs);
             return;
         }
@@ -1008,12 +1063,14 @@ impl DesktopApp {
             for path in paths {
                 let result = (|| -> Result<(PathBuf, String)> {
                     let text = library::read_preset_text(&path)?;
-                    let mut p =
-                        Preset::parse(serde_json::from_str(&text).map_err(|e| e.to_string())?)?;
+                    let doc=serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                    library::validate_preset_kind(&path,&doc)?;
+                    let mut p=Preset::parse(doc)?;
                     let original_name = p.name.clone();
                     let published = library::publish_new_preset(
                         &self.library_dir,
                         &original_name,
+                        library::is_experimental_preset_path(&path),
                         |unique| {
                             if unique == original_name {
                                 Ok(text.clone())
@@ -1054,7 +1111,10 @@ impl DesktopApp {
             let result = (|| -> Result<()> {
                 for entry in &self.library {
                     let text = library::read_preset_text(&entry.path)?;
-                    library::publish_new_preset(&folder, &entry.name, |_| Ok(text.as_str()))?;
+                    let doc=serde_json::from_str(&text).map_err(|e|e.to_string())?;
+                    library::validate_preset_kind(&entry.path,&doc)?;
+                    library::publish_new_preset(&folder, &entry.name,
+                        library::is_experimental_preset_path(&entry.path), |_| Ok(text.as_str()))?;
                 }
                 Ok(())
             })();
@@ -1065,9 +1125,15 @@ impl DesktopApp {
     }
     fn begin_edit(&mut self, edit: Edit) {
         if let Edit::WaypointKey(index) = edit { self.waypoint_begin_key(index); return; }
+        if let Edit::WaypointMidi(index) = edit { self.waypoint_begin_midi(index); return; }
         if self.layout_blocked() {
             return;
         }
+        let edit = if edit == Edit::PresetName && self.experimental_save_requires_copy() {
+            Edit::SaveAs
+        } else {
+            edit
+        };
         self.menu = None;
         self.input = match edit {
             Edit::SourceName(i) => self
@@ -1087,11 +1153,11 @@ impl DesktopApp {
                 if self.preset.name == "My Preset" {
                     String::new()
                 } else {
-                    unique_library_name(&self.library_dir, &self.preset.name)
+                    unique_library_name(&self.library_dir, &self.preset.name,self.experimental_preset_output())
                 }
             }
             Edit::DeletePreset => String::new(),
-            Edit::WaypointKey(_) => unreachable!("dispatched before name editing"),
+            Edit::WaypointKey(_) | Edit::WaypointMidi(_) => unreachable!("dispatched before name editing"),
         };
         self.editor = Some(edit);
         self.focus_editor = true;
@@ -1111,6 +1177,9 @@ impl DesktopApp {
         match edit {
             Edit::WaypointKey(_) => {
                 if let Err(error) = self.waypoint_confirm_key() { self.error = Some(error); }
+            }
+            Edit::WaypointMidi(_) => {
+                if let Err(error) = self.waypoint_confirm_midi() { self.error = Some(error); }
             }
             Edit::SourceName(i) => {
                 if !name.as_bytes().first().is_some_and(|byte| *byte != 0) {
@@ -1235,6 +1304,17 @@ impl DesktopApp {
                 }
             }
         }
+        if let Err(error) = self.refresh_input_preferences_at(dir) { self.error = Some(error); }
+    }
+    fn refresh_input_preferences_at(&mut self, dir: &Path) -> Result<bool> {
+        let value = input_preferences::read(dir)?;
+        #[cfg(windows)]
+        let device = midi::State::decode_preference(&value["midiInput"])?;
+        let changed = self.shortcuts.load(&value["shortcuts"])?;
+        if changed { self.waypoint_key_owner_changed(); }
+        #[cfg(windows)]
+        { self.midi_input.selected = device; }
+        Ok(changed)
     }
     fn save_preferences(&mut self) { self.save_preferences_at(&preferences_dir()); }
 
@@ -1333,6 +1413,7 @@ impl DesktopApp {
     }
 
     fn paint_canvas(&mut self, ui: &egui::Ui, rect: Rect) {
+        if self.experimental.enabled { self.paint_experimental_canvas(ui, rect); return; }
         let native_frame = self.native_paint(rect);
         let painter = ui.painter().with_clip_rect(rect);
         let transform = |p| world_to_screen(p, rect, self.camera);
@@ -1663,6 +1744,7 @@ impl DesktopApp {
                 continue;
             }
             painter.galley(r.min, galley, caption_color);
+            self.paint_pitch_capsule(painter, source_index, r);
             occupied.push(r);
             self.label_rects.push((source_index, r));
         }
@@ -1767,6 +1849,69 @@ impl DesktopApp {
         Ok(Some(completion))
     }
 
+    fn resize_probe_from_wheel(&mut self, ctx: &egui::Context) {
+
+        let gestures: Vec<ProbeGesture> = ctx.input(|i| i.events.iter().filter_map(|event| {
+            match event {
+                egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta, .. }
+                    if cfg!(target_os = "windows") => Some(ProbeGesture::WindowsWheelLine(delta.y)),
+                egui::Event::Zoom(factor) => Some(ProbeGesture::Magnify(*factor)),
+                _ => None,
+            }
+        }).collect());
+        let mut before_gestures = None;
+        for gesture in gestures {
+            let factor = match gesture {
+                ProbeGesture::WindowsWheelLine(line) => {
+                    if !line.is_finite() || line == 0.0 {
+                        continue;
+                    }
+
+                    let raw = (line * 120.0).round();
+                    if !(-32768.0..=32767.0).contains(&raw) || raw / 120.0 != line {
+                        continue;
+                    }
+
+                    let vertical = (raw * 0.5).clamp(-1000.0, 1000.0) * (1.0 / 256.0);
+                    let scaled = f64::from(vertical) * 4.0;
+                    let exponent = scaled * -0.1;
+                    match source_math::wheel_exp(exponent) {
+                        Ok(factor) => factor,
+                        Err(error) => {
+                            self.error = Some(error.message().into());
+                            self.source_math_failure = Some(error);
+                            break;
+                        }
+                    }
+                }
+                ProbeGesture::Magnify(input) => {
+
+                    if !input.is_finite() || input <= 0.0 {
+                        continue;
+                    }
+                    let factor = f64::from(input);
+                    let difference = -1.0 + factor;
+                    if difference.abs() < f64::from_bits(0x3f50624dd2f1a9fc) {
+                        continue;
+                    }
+
+                    factor
+                }
+            };
+            let previous = before_gestures.is_none().then(|| self.capture_undo());
+            let proposed = Probe {
+                radius: (self.probe.radius * factor).clamp(0.04, 0.15),
+                ..self.probe
+            };
+            if self.probe_changed(proposed) && before_gestures.is_none() {
+                before_gestures = previous;
+            }
+        }
+        if let Some(previous) = before_gestures {
+            self.remember_entry(previous);
+        }
+    }
+
     fn canvas_input(&mut self, ctx: &egui::Context, rect: Rect, response: &egui::Response,
         cancellations: &[canvas_gesture::PointerCancellation], escape_aborts_primary: bool,
         passive_hit_failure: Option<source_distance::Failure>)
@@ -1798,68 +1943,7 @@ impl DesktopApp {
             self.waypoint_cancel();
             return;
         }
-        if !over && response.hovered() {
-
-            let gestures: Vec<ProbeGesture> = ctx.input(|i| i.events.iter().filter_map(|event| {
-                match event {
-                    egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta, .. }
-                        if cfg!(target_os = "windows") => Some(ProbeGesture::WindowsWheelLine(delta.y)),
-                    egui::Event::Zoom(factor) => Some(ProbeGesture::Magnify(*factor)),
-                    _ => None,
-                }
-            }).collect());
-            let mut before_gestures = None;
-            for gesture in gestures {
-                let factor = match gesture {
-                    ProbeGesture::WindowsWheelLine(line) => {
-                        if !line.is_finite() || line == 0.0 {
-                            continue;
-                        }
-
-                        let raw = (line * 120.0).round();
-                        if !(-32768.0..=32767.0).contains(&raw) || raw / 120.0 != line {
-                            continue;
-                        }
-
-                        let vertical = (raw * 0.5).clamp(-1000.0, 1000.0) * (1.0 / 256.0);
-                        let scaled = f64::from(vertical) * 4.0;
-                        let exponent = scaled * -0.1;
-                        match source_math::wheel_exp(exponent) {
-                            Ok(factor) => factor,
-                            Err(error) => {
-                                self.error = Some(error.message().into());
-                                self.source_math_failure = Some(error);
-                                break;
-                            }
-                        }
-                    }
-                    ProbeGesture::Magnify(input) => {
-
-                        if !input.is_finite() || input <= 0.0 {
-                            continue;
-                        }
-                        let factor = f64::from(input);
-                        let difference = -1.0 + factor;
-                        if difference.abs() < f64::from_bits(0x3f50624dd2f1a9fc) {
-                            continue;
-                        }
-
-                        factor
-                    }
-                };
-                let previous = before_gestures.is_none().then(|| self.capture_undo());
-                let proposed = Probe {
-                    radius: (self.probe.radius * factor).clamp(0.04, 0.15),
-                    ..self.probe
-                };
-                if self.probe_changed(proposed) && before_gestures.is_none() {
-                    before_gestures = previous;
-                }
-            }
-            if let Some(previous) = before_gestures {
-                self.remember_entry(previous);
-            }
-        }
+        if !over && response.hovered() { self.resize_probe_from_wheel(ctx); }
 
         if self.layout_blocked() || self.settings || self.editor.is_some()
             || self.error.is_some() || self.notice.is_some()
@@ -2191,6 +2275,10 @@ impl DesktopApp {
     {
         localization::set(ui.ctx(), self.locale);
         self.poll_library(ui.ctx());
+        if !self.experimental_canvas_navigation_active(ui.ctx())
+            || ui.ctx().input(|i|!i.focused || i.raw.events.iter().any(|e|matches!(e,egui::Event::WindowFocused(false))))
+        {self.experimental.retire_input();}
+        if cancellations.iter().any(|c|c.affects(egui::PointerButton::Primary)) {self.experimental.retire_pointer();}
 
         let mut retire_primary_on_return = false;
         self.waypoint_frame_start(ui.ctx(), cancellations);
@@ -2198,7 +2286,7 @@ impl DesktopApp {
         if retire_primary_on_return { self.drag = None; self.waypoint_cancel(); }
         if self.layout_blocked() || self.settings || self.editor.is_some() || self.color_picker
             || self.error.is_some() || self.notice.is_some() || egui::Popup::is_any_open(ui.ctx())
-        { self.waypoint_cancel(); }
+        { self.waypoint_cancel(); self.experimental.retire_input(); }
     }
 
     fn show_pointer_frame(&mut self, ui: &mut egui::Ui,
@@ -2206,6 +2294,19 @@ impl DesktopApp {
         observations: &[canvas_gesture::UnhandledEscapeDown], retire_primary_on_return: &mut bool)
     {
         let ctx = ui.ctx().clone();
+        ctx.options_mut(|options| options.zoom_with_keyboard = !self.experimental.enabled);
+        if ctx.current_pass_index()==0 {
+            let admitted=self.experimental_canvas_navigation_active(&ctx);
+            self.experimental.observe_shift(ctx.input(|i| i.modifiers.shift),admitted);
+        }
+        if ctx.current_pass_index() == 0 && ctx.input(|i| i.raw.events.iter().any(|event|
+            matches!(event, egui::Event::WindowFocused(true)))) {
+            match self.refresh_input_preferences_at(&preferences_dir()) {
+                Ok(true) => self.waypoint_block_current_key_batch(),
+                Ok(false) => {},
+                Err(error) => self.error = Some(error),
+            }
+        }
 
         let focus_aborts_primary = ctx.input(|input| !input.focused
             || input.raw.events.iter().any(|event|
@@ -2227,6 +2328,8 @@ impl DesktopApp {
         self.advance_layout(&ctx);
         self.publish_live_condition();
         if !self.plugin_hosted { self.reconcile_live_audio(&ctx); }
+        #[cfg(windows)]
+        self.shortcut_midi_frame(&ctx);
         if self.layout_blocked() {
             self.paint_canvas(ui, full);
             let input_blocked = self.pending_layout_ui(&ctx, full);
@@ -2234,7 +2337,7 @@ impl DesktopApp {
             return;
         }
         let message_at_frame_start = self.error.is_some() || self.notice.is_some();
-        let key_editor_at_frame_start = matches!(self.editor, Some(Edit::WaypointKey(_)));
+        let key_editor_at_frame_start = matches!(self.editor, Some(Edit::WaypointKey(_) | Edit::WaypointMidi(_)));
         let dismiss_error = self.error.is_some();
 
         let app_escape = ctx.input(|i| i.key_pressed(egui::Key::Escape))
@@ -2318,7 +2421,7 @@ impl DesktopApp {
                 .collect::<Vec<_>>()
         });
         if self.error.is_none() && self.notice.is_none()
-            && !matches!(self.editor, Some(Edit::WaypointKey(_))) {
+            && !matches!(self.editor, Some(Edit::WaypointKey(_) | Edit::WaypointMidi(_))) {
             self.dispatch_import(&ctx, dropped);
         }
         if !self.latch_viewport() {
@@ -2349,6 +2452,7 @@ impl DesktopApp {
             ui.id().with("canvas-interaction"),
             Sense::click_and_drag(),
         );
+        self.experimental.canvas_id = Some(response.id);
         self.overlay_rects.clear();
         self.menu_rects.clear();
         self.picker_rect = None;
@@ -2365,6 +2469,7 @@ impl DesktopApp {
         self.rail(&ctx, full);
         self.monitor_controls(&ctx, full, cancellations, escape_aborts_primary, observations);
         self.waypoint_toolbar(&ctx, full, cancellations, escape_aborts_primary, observations);
+        self.probe_mover_ui(&ctx, full);
         if !self.settings && self.editor.is_none() && !self.color_picker {
             self.source_actions(&ctx, full);
         }
@@ -2399,7 +2504,7 @@ impl DesktopApp {
             || self.notice.is_some();
         self.message_ui(&ctx, full);
         self.analysis_ui_with_barrier(&ctx, full, message_in_frame);
-        let binding_barrier = key_editor_at_frame_start || matches!(self.editor, Some(Edit::WaypointKey(_)));
+        let binding_barrier = key_editor_at_frame_start || matches!(self.editor, Some(Edit::WaypointKey(_) | Edit::WaypointMidi(_)));
         let mut dismissed = message_in_frame || binding_barrier;
         let mut clear_selection = false;
         if !message_in_frame && !binding_barrier && ctx.input(|i| i.pointer.primary_pressed())
@@ -2420,7 +2525,7 @@ impl DesktopApp {
                 dismissed = true;
             }
             if !self.overlay_rects.iter().any(|r| r.contains(at)) {
-                if !focus_aborts_primary && self.selected.is_some() && !self.waypoint_armed()
+                if !self.experimental.enabled && !focus_aborts_primary && self.selected.is_some() && !self.waypoint_armed()
                     && !self.waypoint_claimed_pass(&ctx)
                     && self.waypoint_press(&ctx, full, &response, cancellations).is_none() {
                     match self.hit_source(at, full) {
@@ -2436,7 +2541,7 @@ impl DesktopApp {
         }
         let mut passive_aborts_primary = false;
         let mut passive_hit_failure = None;
-        if !dismissed {
+        if !dismissed && !self.experimental.enabled {
 
             match self.passive_primary_escape(&ctx, full, &response, cancellations, observations) {
                 Ok(Some(completed_before_escape)) => {
@@ -2452,8 +2557,12 @@ impl DesktopApp {
         }
         if clear_selection && !passive_aborts_primary { self.selected = None; }
         if !dismissed {
-            self.canvas_input(&ctx, full, &response, cancellations,
-                escape_aborts_primary || passive_aborts_primary, passive_hit_failure);
+            if self.experimental.enabled {
+                self.experimental_input(&ctx, full, &response, cancellations, escape_aborts_primary);
+            } else {
+                self.canvas_input(&ctx, full, &response, cancellations,
+                    escape_aborts_primary || passive_aborts_primary, passive_hit_failure);
+            }
         } else if message_in_frame {
             self.drag = None;
         }
@@ -2602,10 +2711,10 @@ fn safe_filename(name: &str) -> String {
         }
     }
 }
-fn unique_library_name(dir: &Path, name: &str) -> String {
+fn unique_library_name(dir: &Path, name: &str, experimental: bool) -> String {
     let mut suffix = 0usize;
     let mut value = library::preset_candidate_name(name, suffix);
-    while dir.join(format!("{}.json", safe_filename(&value))).exists() {
+    while dir.join(library::preset_filename(&value, experimental)).exists() {
         let Some(next) = suffix.checked_add(1) else { break };
         suffix = next;
         value = library::preset_candidate_name(name, suffix);

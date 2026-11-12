@@ -503,6 +503,7 @@ impl DesktopApp {
                 );
                 if optional_tooltip(settings_response, self.show_tooltips, "Open settings.").clicked() {
                     if !self.settings {
+                        if let Err(error) = self.refresh_input_preferences_at(&preferences_dir()) { self.error = Some(error); }
                         if self.color_picker && self.color_source.is_none() {
 
                             self.native_tone_hex.cancel();
@@ -884,7 +885,7 @@ impl DesktopApp {
         let rect = Rect::from_min_size(position, vec2(width, 153.0));
         self.overlay_rects.push(rect);
         self.menu_rects.push(rect);
-        let can_save = !self.preset_needs_name();
+        let can_save = !self.preset_needs_name() || self.experimental_save_requires_copy();
         egui::Area::new(egui::Id::new("preset-actions"))
             .order(egui::Order::Foreground)
             .fixed_pos(position)
@@ -1125,6 +1126,7 @@ impl DesktopApp {
             return;
         }
         let message_open = self.error.is_some() || self.notice.is_some();
+        let assignment_open = self.shortcuts.editing();
         let rect = settings_panel_rect(full);
         self.overlay_rects.push(rect);
         let lights = self.ambient_lights(full);
@@ -1135,10 +1137,12 @@ impl DesktopApp {
         let before_locale = self.locale;
         #[cfg(windows)]
         let audio_before = self.audio_devices.selection.clone();
+        #[cfg(windows)]
+        let midi_before = self.midi_input.preference();
         let resources_page = self.settings_resources;
         let reset_scroll = std::mem::take(&mut self.settings_scroll_reset);
         let modal = modal_panel(ctx, "settings-modal", rect, Color32::from_black_alpha(25), |ui| {
-                ui.add_enabled_ui(!message_open, |ui| {
+                ui.add_enabled_ui(!message_open && !assignment_open, |ui| {
                     ui.set_min_size(rect.size());
                     glass(ui.painter(), rect, &lights, false);
                     if resources_page {
@@ -1250,12 +1254,16 @@ impl DesktopApp {
                                 settings_section_colored(ui, width, "Audio", SETTINGS_REFERENCE_HIGHLIGHT);
                                 #[cfg(windows)]
                                 if self.plugin_hosted {
-                                    for label in ["Audio System", "Output", "Input", "Sample Rate", "Buffer Size", "MIDI Control Device", "When the input is stereo"] {
+                                    for label in ["Audio System", "Output", "Input", "Sample Rate", "Buffer Size", "When the input is stereo"] {
                                         let row = settings_row(ui, width, label);
                                         setting_value(ui, row, label, "Managed by host", "The plugin host controls audio routing and processing buffers.", self.show_tooltips, false, SettingsValueStyle::Default);
                                     }
+                                    let row = settings_row(ui, width, "MIDI Control Device");
+                                    setting_value(ui, row, "MIDI Control Device", "Host input unavailable", "VST host MIDI input is not connected yet.", self.show_tooltips, false, SettingsValueStyle::Default);
                                 } else {
                                     self.audio_devices.ui(ui, width, self.show_tooltips);
+                                    self.midi_input.ui(ui, width);
+                                    self.audio_devices.stereo_ui(ui, width);
                                 }
                                 #[cfg(not(windows))]
                                 for label in ["Audio System", "Output", "Input", "Sample Rate", "Buffer Size", "MIDI Control Device", "When the input is stereo"] {
@@ -1271,31 +1279,13 @@ impl DesktopApp {
                                     ui.painter().text(region.center(), Align2::CENTER_CENTER,
                                         localization::tr(ctx, text), FontId::proportional(11.0), SETTINGS_SHORTCUT_COLUMN);
                                 }
-                                for (index, action) in [
-                                    "Go to the Next Waypoint", "Go to the Previous Waypoint",
-                                    "Restart from the First Waypoint", "Shift Pitch Up by an Octave",
-                                    "Shift Pitch Down by an Octave",
-                                ].into_iter().enumerate() {
+                                for (index, action) in shortcuts::ACTIONS.into_iter().enumerate() {
                                     let (row, _) = ui.allocate_exact_size(vec2(width, 36.0), Sense::hover());
                                     let buttons = settings_shortcut_rects(row);
                                     ui.painter().with_clip_rect(Rect::from_min_max(row.min, pos2(buttons[0].left() - 6.0, row.bottom())))
                                         .text(row.left_center(), Align2::LEFT_CENTER, localization::tr(ctx, action), FontId::proportional(13.0), SETTINGS_REFERENCE_LABEL);
                                     for (column, button) in buttons.into_iter().enumerate() {
-                                        ui.painter().rect_filled(button, 12, Color32::from_black_alpha(38));
-                                        ui.painter().text(button.center(), Align2::CENTER_CENTER,
-                                            localization::tr(ctx, "Not Assigned Yet"), FontId::proportional(12.0), SETTINGS_SHORTCUT_VALUE);
-                                        let response = ui.interact(
-                                            button, ui.id().with(("shortcut-unavailable", index, column as i32)), Sense::hover(),
-                                        );
-                                        let action_label = localization::tr(ctx, action);
-                                        let column_label = localization::tr(ctx, if column == 0 { "KEYBOARD" } else { "MIDI" });
-                                        let unassigned = localization::tr(ctx, "Not Assigned Yet");
-                                        let accessible_label = format!("{action_label}, {column_label}: {unassigned}");
-                                        response.widget_info(|| egui::WidgetInfo::labeled(
-                                            egui::WidgetType::Label, false, &accessible_label,
-                                        ));
-                                        optional_tooltip(response, self.show_tooltips,
-                                            "Waypoint and MIDI shortcut assignment is not available yet.");
+                                        self.shortcut_cell(ui, button, index, column);
                                     }
                                 }
                                 ui.add_space(7.0);
@@ -1314,16 +1304,26 @@ impl DesktopApp {
                     });
                 });
             });
-        if !message_open && self.error.is_none() && self.notice.is_none()
+        if !message_open && !assignment_open && self.error.is_none() && self.notice.is_none()
             && modal.backdrop_response.clicked()
         {
             self.settings = false;
         }
+        if !self.settings || self.settings_resources { self.shortcuts.cancel_edit(); }
+        else if self.shortcuts.editing() { self.shortcut_assignment_dialog(ctx, full); }
         let multithread_changed = before_multithread != self.live.multithread();
         let changed = paths_before != self.model_paths || ffmpeg_before != self.ffmpeg_path
             || before_tooltips != self.show_tooltips || before_locale != self.locale;
         #[cfg(windows)]
         let changed = changed || audio_before != self.audio_devices.selection;
+        #[cfg(windows)]
+        if midi_before != self.midi_input.preference() {
+            let selected = self.midi_input.preference();
+            if let Err(error) = input_preferences::edit(&preferences_dir(), |value| { value["midiInput"] = selected; Ok(()) }) {
+                if let Ok(previous) = midi::State::decode_preference(&midi_before) { self.midi_input.selected = previous; }
+                self.error = Some(error);
+            }
+        }
         if multithread_changed { self.save_multithread_edit(before_multithread); }
         if changed { self.save_preferences(); }
     }
@@ -1331,6 +1331,9 @@ impl DesktopApp {
     pub(super) fn editor_ui(&mut self, ctx: &egui::Context, full: Rect) {
         if matches!(self.editor, Some(Edit::WaypointKey(_))) {
             self.waypoint_key_dialog(ctx, full); return;
+        }
+        if matches!(self.editor, Some(Edit::WaypointMidi(_))) {
+            self.waypoint_midi_dialog(ctx, full); return;
         }
         let Some(edit) = self.editor else {
             return;
@@ -1357,7 +1360,7 @@ impl DesktopApp {
                     Edit::PresetName => "Rename Preset",
                     Edit::SaveAs => "Save As a New Preset",
                     Edit::DeletePreset => "Delete Preset",
-                    Edit::WaypointKey(_) => unreachable!("dispatched to key dialog"),
+                    Edit::WaypointKey(_) | Edit::WaypointMidi(_) => unreachable!("dispatched to binding dialog"),
                 };
                 ui.painter().text(
                     pos2(left, rect.top() + if deletion { 34.0 } else { 28.0 }),
@@ -1736,7 +1739,7 @@ impl DesktopApp {
             return;
         };
 
-        let message = clipped_title(localization::tr(ctx, message), 16 * 1024);
+        let message = clipped_title(&localization::input_message(ctx, message), 16 * 1024);
         let rect = Rect::from_center_size(full.center(), vec2(470.0, 210.0));
         self.overlay_rects.push(full);
         modal_panel(ctx, "message", rect, Color32::from_black_alpha(25), |ui| {

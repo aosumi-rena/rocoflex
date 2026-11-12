@@ -36,13 +36,14 @@ impl ToneConditionProvider {
     }
 }
 
-struct InputHop {ordinal:u64,condition:Arc<CurrentCondition>,target128:[f32;128]}
+struct InputHop {ordinal:u64,condition:Arc<CurrentCondition>,target128:[f32;128],source_tag:[u64;3]}
 pub(crate) struct LiveGraph {
     framing:FixedHopStream,source:SourceProducer,engine:MorphEngine,
     tone:ToneConditionProvider,
     input_filters:SourceInputFilters,
     levels:AudioLevels,
     source_frames:Vec<SourceFrame>,
+    pitch_observation:crate::pitch_display::Source,
     reader:ConditionReader,pending:VecDeque<InputHop>,next_ordinal:u64,
 }
 impl LiveGraph {
@@ -67,7 +68,7 @@ impl LiveGraph {
             tone:ToneConditionProvider {generator:ToneGenerator::from_dnni(analysis)?,cached:None},
             input_filters:SourceInputFilters::new_reference_48k(),
             levels:AudioLevels::new_source_defaults(),source_frames:Vec::new(),
-            pending:VecDeque::new(),next_ordinal:0})
+            pending:VecDeque::new(),next_ordinal:0,pitch_observation:Default::default()})
     }
 
     pub(crate) fn prepared_count_plan(&self)->super::count_plan::Query<super::count_plan::PreparedCountPlan> {
@@ -83,8 +84,12 @@ impl LiveGraph {
         let head=self.source.cold_count_inputs()?;
         PreparedCountPlan::from_prepared_head(head,self.engine.prepared_count_inputs()?)
     }
+    pub(crate) fn pitch_sample(&self)->crate::pitch_display::Observation {self.pitch_observation.sample()}
+    pub(crate) fn set_pitch_source(&mut self,epoch:u64,channel:u32,bus:u64) {
+        self.pitch_observation.change(epoch,channel,bus,self.framing.buffered_input_frames()!=0);
+    }
     pub(crate) fn process(&mut self,input:&[f32],output:&mut Vec<f32>,gain:&mut InputGain)->Result<()> {
-        let Self {framing,source,engine,tone,input_filters,levels,source_frames,reader,pending,next_ordinal}=self;
+        let Self {framing,source,engine,tone,input_filters,levels,source_frames,reader,pending,next_ordinal,pitch_observation}=self;
         let result:Result<()>=(|| {
         let pipelined=engine.pipeline_active();
         if pipelined {engine.pipeline_idle()?;}
@@ -103,7 +108,8 @@ impl LiveGraph {
             let target128=target?;
             let prepared:Result<()>=(|| {input_filters.process(&mut signal)?;levels.input_block(&mut signal)?;Ok(())})();
             prepared?;
-            pending.push_back(InputHop {ordinal:*next_ordinal,condition,target128});
+            pending.push_back(InputHop {ordinal:*next_ordinal,condition,target128,
+                source_tag:pitch_observation.begin_hop()});
             *next_ordinal=next_ordinal.checked_add(1).ok_or("Live source ordinal overflow")?;
             source_frames.clear();
             let produced=source.process(&signal,source_frames);
@@ -124,6 +130,7 @@ impl LiveGraph {
                 let generated=if pipelined {engine.process_pipelined(frame.ordinal,features,rendered)}
                     else {engine.process(features,rendered)};
                 generated?;
+                pitch_observation.observe(input.source_tag,frame.ordinal,pitch);
                 let adjusted=levels.output_block(&mut rendered[begin..]);
                 adjusted?;
                 drop(pending.pop_front());

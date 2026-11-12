@@ -37,10 +37,12 @@ struct RocoQualityChoice { uint32_t profile; uint32_t defaulted_label; };
 int32_t roco_quality_resolve(const uint8_t* document, size_t length, RocoQualityChoice* choice);
 int32_t roco_plugin_set_condition(RocoPlugin* plugin, const RocoCondition* condition);
 int32_t roco_plugin_get_condition(RocoPlugin* plugin, RocoCondition* condition, uint64_t* revision);
+struct RocoPitch { uint64_t word=0, ordinal=0; };
 int32_t roco_plugin_process(RocoPlugin* plugin, const float* in_left, const float* in_right,
     float* out_left, float* out_right, uint32_t frames, uint32_t input_channels,
-    uint32_t output_channels);
+    uint32_t output_channels, uint64_t source_epoch, uint32_t source_channel, uint64_t source_bus, RocoPitch* pitch);
 uint32_t roco_plugin_latency_samples(const RocoPlugin* plugin);
+
 int32_t roco_plugin_input_gain(const RocoPlugin* plugin, float* gain);
 size_t roco_plugin_copy_error(const RocoPlugin* plugin, char* buffer, size_t capacity);
 
@@ -49,6 +51,7 @@ struct RocoEditor;
 RocoEditor* roco_editor_open(RocoPlugin* plugin, void* parent, uint32_t width, uint32_t height);
 int32_t roco_editor_idle(RocoEditor* editor);
 int32_t roco_editor_set_input_meter(RocoEditor* editor, uint32_t available, float envelope);
+int32_t roco_editor_set_input_pitch(RocoEditor* editor, uint64_t word);
 int32_t roco_editor_resize(RocoEditor* editor, uint32_t width, uint32_t height);
 // Host scale replaces native DPI; zero restores it. GUI thread only.
 int32_t roco_editor_set_content_scale(RocoEditor* editor, float factor);

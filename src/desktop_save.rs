@@ -12,6 +12,16 @@ impl AsRef<[u8]> for SavedSnapshot {
     }
 }
 
+impl SavedSnapshot {
+    pub(super) fn name(&self) -> &str {
+        &self.preset.name
+    }
+
+    pub(super) fn validate_destination(&self, path: &Path) -> Result<()> {
+        library::validate_preset_kind(path, &self.preset.document)
+    }
+}
+
 fn snapshot_document(
     document: &Value,
     working_uv: Option<[f32; 8]>,
@@ -63,6 +73,11 @@ impl DesktopApp {
             snapshot_document(&self.preset.document, working_uv, self.probe).map_err(str::to_owned)?;
         if let Some(name) = name {
             document["presetName"] = json!(name);
+        }
+        if self.experimental_preset_output()
+            && crate::preset::experimental_canvas_metadata(&document)?.is_none()
+        {
+            return Err("The experimental canvas settings could not be saved.".into());
         }
 
         let preset = Preset::parse(document).map_err(|_| {

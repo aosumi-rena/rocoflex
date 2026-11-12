@@ -64,6 +64,47 @@ pub(super) fn tr<'a>(ctx: &Context, english: &'a str) -> &'a str {
     text(locale, english)
 }
 
+pub(super) fn input_value(ctx: &Context, template: &str, value: &str) -> String {
+    tr(ctx, template).replace("{value}", value)
+}
+
+pub(super) fn midi_binding(ctx: &Context, binding: super::midi_match::MidiBinding) -> String {
+    let template = match binding.kind {
+        super::midi_match::MidiKind::Note => "Note {number} / {channel}",
+        super::midi_match::MidiKind::Controller => "CC {number} / {channel}",
+    };
+    tr(ctx, template).replace("{number}", &binding.number.to_string())
+        .replace("{channel}", &(u16::from(binding.channel) + 1).to_string())
+}
+
+pub(super) fn input_message(ctx: &Context, message: &str) -> String {
+    for (prefix, suffix, template) in [
+        ("Invalid input shortcuts: ", "", "Invalid input shortcuts: {value}"),
+        ("Invalid MIDI input selection: ", "", "Invalid MIDI input selection: {value}"),
+        ("Could not list MIDI devices: ", ". Click Refresh MIDI devices to retry.", "Could not list MIDI devices: {value}. Click Refresh MIDI devices to retry."),
+        ("Could not list MIDI devices: ", "", "Could not list MIDI devices: {value}"),
+        ("MIDI close is retrying (Windows error ", ").", "MIDI close is retrying (Windows error {value})."),
+        ("MIDI device open failed (Windows error ", ").", "MIDI device open failed (Windows error {value})."),
+        ("MIDI device start failed (Windows error ", ").", "MIDI device start failed (Windows error {value})."),
+        ("Could not start MIDI input: ", "", "Could not start MIDI input: {value}"),
+        ("Could not read input bindings: ", "", "Could not read input bindings: {value}"),
+        ("Could not inspect input bindings: ", "", "Could not inspect input bindings: {value}"),
+        ("Input bindings file is invalid: ", "", "Input bindings file is invalid: {value}"),
+        ("Could not create input bindings directory: ", "", "Could not create input bindings directory: {value}"),
+        ("Could not serialize input bindings: ", "", "Could not serialize input bindings: {value}"),
+        ("Could not create temporary input bindings: ", "", "Could not create temporary input bindings: {value}"),
+        ("Could not save input bindings: ", "", "Could not save input bindings: {value}"),
+        ("Could not replace input bindings: ", "", "Could not replace input bindings: {value}"),
+        ("Could not open input bindings lock: ", "", "Could not open input bindings lock: {value}"),
+        ("Input bindings are busy or locked: ", ". Try again.", "Input bindings are busy or locked: {value}. Try again."),
+    ] {
+        if let Some(value) = message.strip_prefix(prefix).and_then(|s| s.strip_suffix(suffix)) {
+            return input_value(ctx, template, value);
+        }
+    }
+    tr(ctx, message).to_owned()
+}
+
 pub(super) fn status(ctx: &Context, message: &str) -> String {
     for heading in ["Valid analysis model", "Invalid analysis model",
         "Valid morphing model", "Invalid morphing model"] {

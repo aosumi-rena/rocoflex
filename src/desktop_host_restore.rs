@@ -43,9 +43,26 @@ impl ExpectedCondition {
             Self::Empty if enabled => Err("The saved empty selection disagrees with the restored canvas.".into()),
             Self::Canvas { embedding, parameters } => {
                 if !enabled { return Err("The saved voice target has no enabled canvas source.".into()); }
-                let mix = view.and_then(|v| v.mix.as_deref())
+                let experimental=crate::preset::experimental_canvas_metadata(&preset.document)?;
+                let mix = if experimental.is_some_and(|value|value.enabled) {
+                    // Validate the same complete 128D source payload and control ranges.
+                    // The separately retained host embedding remains authoritative.
+                    let mut selected = false;
+                    let mut weights = Vec::new();
+                    let mut blends = Vec::new();
+                    for source in &preset.sources {
+                        for point in &source.points {
+                            let take = !selected && source.enabled && point.enabled;
+                            if take { selected = true; }
+                            weights.push([if take {1.0} else {0.0}, 0.0]);
+                        }
+                        blends.push((source.kind == "trajectory").then_some(0.0));
+                    }
+                    Some(crate::prototype_controls::ControllerMix { point_weights: weights,
+                        positive_scale:1.0, negative_scale:0.0, trajectory_blends:blends })
+                } else { None };
+                let mix = mix.as_ref().or_else(|| view.and_then(|v| v.mix.as_deref()))
                     .ok_or("The restored canvas has no completed voice mix.")?;
-
                 let _ = embedding;
                 let candidate = crate::prototype_controls::from_controller_mix(preset, mix, *parameters)?;
                 if candidate.parameters.pregain_db.to_bits() != parameters.pregain_db.to_bits()
@@ -59,11 +76,15 @@ impl ExpectedCondition {
         }
     }
 
-    pub(super) fn verify_current(&self, app: &DesktopApp) -> Result<()> {
+    pub(super) fn verify_current(&self, app: &mut DesktopApp) -> Result<()> {
         self.verify(&app.preset, app.layout_view.as_ref())?;
         if let Self::Canvas { embedding, parameters } = self {
             let current = match app.live.restored_canvas() {
                 Some(current) => current,
+                None if app.experimental.enabled => {
+                    let mix = app.experimental_mix()?;
+                    crate::prototype_controls::from_controller_mix(&app.preset, &mix, *parameters)?.embedding
+                }
                 None => {
                     let mix = app.layout_view.as_ref().and_then(|v| v.mix.as_deref())
                         .ok_or("The restored canvas has no completed voice mix.")?;
