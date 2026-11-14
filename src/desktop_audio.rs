@@ -266,6 +266,9 @@ impl DesktopApp {
                 self.audio_epochs.cancelled_queued = 0;
             }
         }
+        if self.integration_hosted && self.ffmpeg_detected.is_none() && self.ffmpeg_path.trim().is_empty() {
+            self.ffmpeg_detected = audio_decode::detect_ffmpeg();
+        }
         self.audio_epochs.total += paths.len();
         for path in paths {
             let name = path

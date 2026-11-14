@@ -673,6 +673,20 @@ impl DesktopApp {
         }
     }
 
+    pub(super) fn settle_embedded_layout(&mut self) -> Result<()> {
+        for _ in 0..1024 {
+            if self.layout_blocked() {
+                return Err(self.layout_status.clone().unwrap_or_else(|| "Canvas transaction retained.".into()));
+            }
+            if !self.layout.active() {
+                return Ok(());
+            }
+            let prepared = self.layout.prepare_callback().ok_or("Canvas callback unavailable.")?;
+            self.finish_publication(prepared, None, None, false);
+        }
+        Err("Canvas layout did not settle.".into())
+    }
+
     pub(super) fn abandon_pending_layout(&mut self) {
         if self.pending_layout.take().is_none() {
             return;

@@ -255,11 +255,12 @@ impl DesktopApp {
         let waypoint_bounds = MonitorBounds::new(parent.waypoints, true);
         let pitch = pitch_bounds.icon;
         let waypoint = waypoint_bounds.icon;
-        self.overlay_rects.extend([gain, pitch, waypoint]);
+        self.overlay_rects.extend([gain, pitch]);
+        if !self.integration_hosted { self.overlay_rects.push(waypoint); }
         if self.monitor_controls.pitch_open() {
             self.overlay_rects.push(pitch_bounds.child_maximum);
         }
-        if self.monitor_controls.waypoints_open() {
+        if !self.integration_hosted && self.monitor_controls.waypoints_open() {
             self.overlay_rects.push(waypoint_bounds.child_maximum);
         }
         egui::Area::new(egui::Id::new("monitor-pre-gain"))
@@ -416,59 +417,61 @@ impl DesktopApp {
                     );
                 }
             });
-        let waypoint_frame = if self.monitor_controls.waypoints_open() {
-            waypoint_bounds.component
-        } else { waypoint };
-        egui::Area::new(egui::Id::new("monitor-waypoints"))
-            .order(egui::Order::Foreground).fixed_pos(waypoint_frame.min).show(ctx, |ui| {
-                ui.set_min_size(waypoint_frame.size());
-                if blocked { ui.disable(); }
-                let p = ui.painter();
-                let response = ui.interact(waypoint,ui.id().with("waypoint-toggle"),Sense::click());
-                if response.enabled() && response.hovered() {
-                    p.circle_filled(waypoint.center(), waypoint.height() * 0.5,
-                        Color32::from_rgb(63, 63, 72));
-                }
-                icon(p, Rect::from_center_size(waypoint.center(), vec2(24.0, 24.0)), Icon::Pin, TEXT);
-                if !blocked && monitor_clicked(&response, &waypoint_bounds, true) {
-                    self.monitor_controls.activate(MonitorMode::Waypoints);
-                }
-                optional_tooltip(response, self.show_tooltips, "Setup waypoints for quickly switching voices.");
-                if self.monitor_controls.waypoints_open() {
-                    let child = waypoint_bounds.child_maximum;
-
-                    let rectangles = super::monitor_expansion::waypoint_child_rects(
-                        child.width() as i32, child.height() as i32);
-                    let [add, order] = rectangles.map(|r| Rect::from_min_size(
-                        child.min + vec2(r.x as f32, r.y as f32), vec2(r.width as f32, r.height as f32)));
-                    let child_painter = ui.painter().with_clip_rect(child);
-                    let add_response = ui.interact(add.intersect(child),ui.id().with("waypoint-add"),Sense::click());
-                    let order_response = ui.interact(order.intersect(child),ui.id().with("waypoint-reroute"),Sense::click());
-
-                    let tint = |highlighted| if highlighted { Color32::from_rgb(224, 224, 226) }
-                        else { Color32::from_rgb(183, 184, 187) };
-                    icon(&child_painter, add.shrink(2.0), Icon::PinAdd, tint(add_response.hovered()));
-                    icon(&child_painter, order.shrink(2.0), Icon::Reroute, tint(order_response.hovered()));
-                    if !blocked && self.menu.is_none()
-                        && self.waypoint_control_clicked(ctx, &add_response, cancellations, abort_primary, observations) {
-                        if let Err(error) = self.waypoint_add() { self.error = Some(error); }
+        if !self.integration_hosted {
+            let waypoint_frame = if self.monitor_controls.waypoints_open() {
+                waypoint_bounds.component
+            } else { waypoint };
+            egui::Area::new(egui::Id::new("monitor-waypoints"))
+                .order(egui::Order::Foreground).fixed_pos(waypoint_frame.min).show(ctx, |ui| {
+                    ui.set_min_size(waypoint_frame.size());
+                    if blocked { ui.disable(); }
+                    let p = ui.painter();
+                    let response = ui.interact(waypoint,ui.id().with("waypoint-toggle"),Sense::click());
+                    if response.enabled() && response.hovered() {
+                        p.circle_filled(waypoint.center(), waypoint.height() * 0.5,
+                            Color32::from_rgb(63, 63, 72));
                     }
-                    if !blocked && self.error.is_none() && self.menu.is_none()
-                        && self.waypoint_control_clicked(ctx, &order_response, cancellations, abort_primary, observations) {
-                        if let Err(error) = self.waypoint_begin_reroute() { self.notice = Some(error); }
+                    icon(p, Rect::from_center_size(waypoint.center(), vec2(24.0, 24.0)), Icon::Pin, TEXT);
+                    if !blocked && monitor_clicked(&response, &waypoint_bounds, true) {
+                        self.monitor_controls.activate(MonitorMode::Waypoints);
                     }
-                    optional_tooltip(
-                        add_response,
-                        self.show_tooltips,
-                        "Add a new waypoint at the cursor position.",
-                    );
-                    optional_tooltip(
-                        order_response,
-                        self.show_tooltips,
-                        "Reroute the waypoints by selecting them in the desired order.",
-                    );
-                }
-            });
+                    optional_tooltip(response, self.show_tooltips, "Setup waypoints for quickly switching voices.");
+                    if self.monitor_controls.waypoints_open() {
+                        let child = waypoint_bounds.child_maximum;
+
+                        let rectangles = super::monitor_expansion::waypoint_child_rects(
+                            child.width() as i32, child.height() as i32);
+                        let [add, order] = rectangles.map(|r| Rect::from_min_size(
+                            child.min + vec2(r.x as f32, r.y as f32), vec2(r.width as f32, r.height as f32)));
+                        let child_painter = ui.painter().with_clip_rect(child);
+                        let add_response = ui.interact(add.intersect(child),ui.id().with("waypoint-add"),Sense::click());
+                        let order_response = ui.interact(order.intersect(child),ui.id().with("waypoint-reroute"),Sense::click());
+
+                        let tint = |highlighted| if highlighted { Color32::from_rgb(224, 224, 226) }
+                            else { Color32::from_rgb(183, 184, 187) };
+                        icon(&child_painter, add.shrink(2.0), Icon::PinAdd, tint(add_response.hovered()));
+                        icon(&child_painter, order.shrink(2.0), Icon::Reroute, tint(order_response.hovered()));
+                        if !blocked && self.menu.is_none()
+                            && self.waypoint_control_clicked(ctx, &add_response, cancellations, abort_primary, observations) {
+                            if let Err(error) = self.waypoint_add() { self.error = Some(error); }
+                        }
+                        if !blocked && self.error.is_none() && self.menu.is_none()
+                            && self.waypoint_control_clicked(ctx, &order_response, cancellations, abort_primary, observations) {
+                            if let Err(error) = self.waypoint_begin_reroute() { self.notice = Some(error); }
+                        }
+                        optional_tooltip(
+                            add_response,
+                            self.show_tooltips,
+                            "Add a new waypoint at the cursor position.",
+                        );
+                        optional_tooltip(
+                            order_response,
+                            self.show_tooltips,
+                            "Reroute the waypoints by selecting them in the desired order.",
+                        );
+                    }
+                });
+        }
 
         if self.monitor_controls.primary_input.owner.is_some_and(|owner|
             !primary_widgets.contains(&Some(owner))) {

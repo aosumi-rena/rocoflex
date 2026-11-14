@@ -50,6 +50,9 @@ pub mod row_prepare_values;
 pub mod normalization;
 pub mod pitch_score;
 pub mod preset;
+pub mod offline;
+#[cfg(feature = "desktop")]
+mod integration_wire;
 pub mod reduction;
 pub mod timbre;
 pub mod quantized_matrix;

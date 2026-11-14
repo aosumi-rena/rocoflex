@@ -40,6 +40,12 @@ mod canvas_state;
 mod experimental_math;
 #[path = "desktop_experimental_canvas.rs"]
 mod experimental_canvas;
+#[path = "desktop_embedded_canvas.rs"]
+mod embedded_canvas;
+pub use embedded_canvas::{offline_model_paths, offline_snapshot};
+#[path = "desktop_integration.rs"]
+mod integration;
+pub use integration::integration_editor;
 #[path = "desktop_captions.rs"]
 mod captions;
 #[path = "desktop_pitch_display.rs"]
@@ -250,6 +256,8 @@ struct PrimaryInput {
 
 pub struct DesktopApp {
     plugin_hosted: bool,
+    integration_hosted: bool,
+    factory_voices_loaded: bool,
     preset: Preset,
     original: String,
     path: Option<PathBuf>,
@@ -370,7 +378,7 @@ impl DesktopApp {
         Self::new_with_context(&cc.egui_ctx, path)
     }
 
-    fn new_with_context(ctx: &egui::Context, path: Option<PathBuf>) -> Self {
+    fn configure_context(ctx: &egui::Context) {
         Self::configure_fonts(ctx);
         ctx.set_theme(egui::Theme::Dark);
         let mut style = (*ctx.global_style()).clone();
@@ -396,10 +404,44 @@ impl DesktopApp {
             .text_styles
             .insert(egui::TextStyle::Button, FontId::proportional(15.0));
         ctx.set_global_style(style);
+    }
+
+    fn new_with_context(ctx: &egui::Context, path: Option<PathBuf>) -> Self {
+        Self::configure_context(ctx);
         let library_dir = preferences_dir().join("presets");
         let preset_paths = library::default_preset_paths(&library_dir);
-        let mut app = Self {
+        let mut app = Self::new_canvas_state(library_dir, preset_paths, audio_decode::detect_ffmpeg());
+        if path.is_none() {
+            app.initialize_actual_no_file_startup();
+        }
+        app.read_preferences();
+        app.load_factory_voices();
+        app.scan_library();
+        if let Some(path) = path {
+            if let Err(e) = app.load(path) {
+                app.error = Some(e);
+            }
+        }
+        app
+    }
+
+    fn new_integration(ctx: &egui::Context, blank: bool) -> Self {
+        Self::configure_context(ctx);
+        let library_dir = preferences_dir().join("presets");
+        let preset_paths = library::default_preset_paths(&library_dir);
+        let mut app = Self::new_canvas_state(library_dir, preset_paths, None);
+        app.plugin_hosted = true;
+        app.integration_hosted = true;
+        if blank { app.initialize_actual_no_file_startup(); }
+        app.read_preferences_at(&preferences_dir());
+        app
+    }
+
+    fn new_canvas_state(library_dir: PathBuf, preset_paths: Vec<library::PresetPath>, ffmpeg_detected: Option<PathBuf>) -> Self {
+        Self {
             plugin_hosted: false,
+            integration_hosted: false,
+            factory_voices_loaded: false,
             preset: blank_preset(),
             original: String::new(),
             path: None,
@@ -437,7 +479,7 @@ impl DesktopApp {
             notice: None,
             model_paths: Default::default(),
             ffmpeg_path: String::new(),
-            ffmpeg_detected: audio_decode::detect_ffmpeg(),
+            ffmpeg_detected,
             #[cfg(windows)]
             audio_devices: audio_devices::State::default(),
             model_info: String::new(),
@@ -499,19 +541,7 @@ impl DesktopApp {
             overlay_rects: Vec::new(),
             menu_rects: Vec::new(),
             picker_rect: None,
-        };
-        if path.is_none() {
-            app.initialize_actual_no_file_startup();
         }
-        app.read_preferences();
-        app.load_factory_voices();
-        app.scan_library();
-        if let Some(path) = path {
-            if let Err(e) = app.load(path) {
-                app.error = Some(e);
-            }
-        }
-        app
     }
 
     pub(crate) fn new_plugin(ctx: &egui::Context, bus: crate::current_condition::ConditionBus) -> Self {
@@ -822,12 +852,45 @@ impl DesktopApp {
         self.experimental.invalidate_geometry();
         self.cache_key = None;
         self.revision = self.revision.wrapping_add(1);
+        self.native_layout = self.mapping == 0 && self.layout_view.is_some();
+        let positions = self.canvas_positions_2d();
+        let mut curves = Vec::new();
+        let mut points = Vec::new();
+        let mut curve_sources = Vec::new();
+        let mut point_sources = Vec::new();
+        for (index, (source, positions)) in self.preset.sources.iter().zip(positions).enumerate() {
+            if !source.enabled {
+                continue;
+            }
+            let color = parse_color(&source.color);
+            let nodes: Vec<_> = source.points.iter().zip(positions)
+                .filter_map(|(point, at)| point.enabled.then_some(at)).collect();
+            if source.kind == "trajectory" {
+                curves.push(Curve {
+                    path: if self.native_layout { nodes.clone() } else { smooth_path(&nodes) },
+                    nodes,
+                    color,
+                });
+                curve_sources.push(index);
+            } else if let Some(position) = nodes.first() {
+                points.push(Anchor { position: *position, color, curve: None, index: points.len() });
+                point_sources.push(index);
+            }
+        }
+        self.scene = Scene::new(curves, points);
+        self.source_for_curve = curve_sources;
+        self.source_for_anchor = self.scene.anchors.iter().map(|a| match a.curve {
+            Some(c) => self.source_for_curve[c],
+            None => point_sources[a.index],
+        }).collect();
+    }
+
+    fn canvas_positions_2d(&self) -> Vec<Vec<Point>> {
         let native = if self.mapping == 0 {
-            self.layout_view.as_ref().map(|view| view.positions.clone())
+            self.layout_view.as_ref().map(|view| &view.positions)
         } else {
             None
         };
-        self.native_layout = native.is_some();
         let mut raw = Vec::new();
         for (s, source) in self.preset.sources.iter().enumerate() {
             for (i, p) in source.points.iter().enumerate() {
@@ -859,67 +922,18 @@ impl DesktopApp {
         } else {
             (2.5 / (max.x - min.x).max(0.01)).min(1.7 / (max.y - min.y).max(0.01))
         };
-        let mut curves = Vec::new();
-        let mut points = Vec::new();
-        let mut curve_sources = Vec::new();
-        let mut point_sources = Vec::new();
-        let mut cursor = 0;
-        for (index, source) in self.preset.sources.iter().enumerate() {
-            let color = parse_color(&source.color);
+        let mut raw = raw.into_iter();
+        self.preset.sources.iter().enumerate().map(|(index, source)| {
             let offset = self.offsets.get(index).copied().unwrap_or_default();
-            let mut nodes = Vec::new();
-            for point in &source.points {
-                let p = raw[cursor];
-                cursor += 1;
-                if source.enabled && point.enabled {
-                    nodes.push(if self.native_layout {
-                        Point::new(p.x + offset.x, p.y + offset.y)
-                    } else {
-                        Point::new(
-                            (p.x - center.x) * scale + offset.x,
-                            (p.y - center.y) * scale + offset.y,
-                        )
-                    });
-                }
-            }
-            if !source.enabled {
-                continue;
-            }
-            if source.kind == "trajectory" {
-                curves.push(Curve {
-                    path: if self.native_layout {
-                        nodes.clone()
-                    } else {
-                        smooth_path(&nodes)
-                    },
-                    nodes,
-                    color,
-                });
-                curve_sources.push(index);
-            } else if let Some(position) = nodes.first() {
-                points.push(Anchor {
-                    position: *position,
-                    color,
-                    curve: None,
-                    index: points.len(),
-                });
-                point_sources.push(index);
-            }
-        }
-        self.scene = Scene::new(curves, points);
-        self.source_for_curve = curve_sources;
-        self.source_for_anchor = self
-            .scene
-            .anchors
-            .iter()
-            .map(|a| {
-                if let Some(c) = a.curve {
-                    self.source_for_curve[c]
+            source.points.iter().map(|_| {
+                let p = raw.next().expect("one position per canvas point");
+                if native.is_some() {
+                    Point::new(p.x + offset.x, p.y + offset.y)
                 } else {
-                    point_sources[a.index]
+                    Point::new((p.x - center.x) * scale + offset.x, (p.y - center.y) * scale + offset.y)
                 }
-            })
-            .collect();
+            }).collect()
+        }).collect()
     }
 
     fn scan_library(&mut self) {
@@ -1284,7 +1298,9 @@ impl DesktopApp {
 
     fn read_preferences_at(&mut self, dir: &Path) {
 
-        if let Ok(value) = try_read_multithread_preference_at(&dir.join(MULTITHREAD_PREFERENCE_FILE)) {
+        if !self.integration_hosted
+            && let Ok(value) = try_read_multithread_preference_at(&dir.join(MULTITHREAD_PREFERENCE_FILE))
+        {
             self.live.set_initial_multithread(value);
         }
         if let Ok(text) = fs::read_to_string(dir.join("settings.json")) {
@@ -1304,7 +1320,9 @@ impl DesktopApp {
                 }
             }
         }
-        if let Err(error) = self.refresh_input_preferences_at(dir) { self.error = Some(error); }
+        if !self.integration_hosted && let Err(error) = self.refresh_input_preferences_at(dir) {
+            self.error = Some(error);
+        }
     }
     fn refresh_input_preferences_at(&mut self, dir: &Path) -> Result<bool> {
         let value = input_preferences::read(dir)?;
@@ -2299,7 +2317,7 @@ impl DesktopApp {
             let admitted=self.experimental_canvas_navigation_active(&ctx);
             self.experimental.observe_shift(ctx.input(|i| i.modifiers.shift),admitted);
         }
-        if ctx.current_pass_index() == 0 && ctx.input(|i| i.raw.events.iter().any(|event|
+        if !self.integration_hosted && ctx.current_pass_index() == 0 && ctx.input(|i| i.raw.events.iter().any(|event|
             matches!(event, egui::Event::WindowFocused(true)))) {
             match self.refresh_input_preferences_at(&preferences_dir()) {
                 Ok(true) => self.waypoint_block_current_key_batch(),
@@ -2326,10 +2344,10 @@ impl DesktopApp {
         self.userdata_load.poll(&ctx, &self.model_paths[1]);
         let full = ui.max_rect();
         self.advance_layout(&ctx);
-        self.publish_live_condition();
+        if !self.integration_hosted { self.publish_live_condition(); }
         if !self.plugin_hosted { self.reconcile_live_audio(&ctx); }
         #[cfg(windows)]
-        self.shortcut_midi_frame(&ctx);
+        if !self.integration_hosted { self.shortcut_midi_frame(&ctx); }
         if self.layout_blocked() {
             self.paint_canvas(ui, full);
             let input_blocked = self.pending_layout_ui(&ctx, full);
@@ -2595,7 +2613,7 @@ impl DesktopApp {
         if self.drag.is_some() {
             ctx.request_repaint();
         }
-        self.publish_live_condition();
+        if !self.integration_hosted { self.publish_live_condition(); }
         if !self.plugin_hosted { self.reconcile_live_audio(&ctx); }
     }
 }

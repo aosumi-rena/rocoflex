@@ -234,6 +234,7 @@ impl DesktopApp {
     }
 
     pub(super) fn waypoint_key_dispatch(&mut self, ctx: &egui::Context) {
+        if self.integration_hosted { return; }
         if ctx.current_pass_index() != 0 { return; }
         let state = &mut self.monitor_controls.waypoint_ui;
         if state.batch_used { return; }
@@ -505,6 +506,7 @@ impl DesktopApp {
     }
 
     pub(super) fn waypoint_hit(&self, at: Pos2, rect: Rect) -> Option<usize> {
+        if self.integration_hosted { return None; }
         if !rect.contains(at) || !at.is_finite() { return None; }
         let points = waypoints(&self.preset.document).ok()?;
         points.iter().enumerate().rev().filter_map(|(index, point)| {
@@ -541,6 +543,10 @@ impl DesktopApp {
         if self.monitor_controls.waypoint_ui.basis.as_ref() != raw_array(&self.preset.document) {
             return Err("The selected waypoint has changed.".into());
         }
+        self.waypoint_delete_at(index)
+    }
+
+    pub(super) fn waypoint_delete_at(&mut self, index: usize) -> Result<()> {
         let array = deleted(&self.preset.document, index)?;
         let mut depths: Vec<_> = waypoints(&self.preset.document)?.iter().map(|point| point.z).collect();
         depths.remove(index);
@@ -771,6 +777,7 @@ impl DesktopApp {
     }
 
     pub(super) fn paint_waypoints(&self, ui: &egui::Ui, full: Rect) {
+        if self.integration_hosted { return; }
         let Ok(points) = waypoints(&self.preset.document) else { return; };
         let p = ui.painter().with_clip_rect(full);
         let screen = |point: &Waypoint| self.waypoint_screen(point, full);

@@ -15,37 +15,7 @@ pub(super) struct PresetPath {
     pub recursive: bool,
 }
 
-fn protected_component_with_license(name: &std::ffi::OsStr, block_license: bool) -> bool {
-    let text = name.to_string_lossy().to_ascii_lowercase();
-    text.split(|c: char| !c.is_ascii_alphanumeric()).any(|part| {
-        part.starts_with("session") || part == "auth" || part.starts_with("authentication")
-            || part.starts_with("authorization") || part.starts_with("oauth")
-            || (block_license && (part.starts_with("license") || part.starts_with("licence")))
-            || part.starts_with("credential") || part.starts_with("token")
-            || part.starts_with("cookie") || part.starts_with("password")
-            || part.starts_with("secret")
-    })
-}
-
-fn protected_component(name: &std::ffi::OsStr) -> bool {
-    protected_component_with_license(name, true)
-}
-
-pub(super) fn protected_path(path: &Path) -> bool {
-    path.components().any(|part| match part {
-        std::path::Component::Normal(name) => protected_component(name),
-        _ => false,
-    })
-}
-
-pub(super) fn protected_model_path(path: &Path) -> bool {
-    let named_model = path.file_name().and_then(|name| name.to_str()).is_some_and(|name|
-        name.eq_ignore_ascii_case("model.dnni") || name.eq_ignore_ascii_case("userdata.bin"));
-    path.components().any(|part| match part {
-        std::path::Component::Normal(name) => protected_component_with_license(name, !named_model),
-        _ => false,
-    })
-}
+pub(super) use crate::offline::io::{protected_component, protected_model_path, protected_path};
 
 pub(super) fn default_preset_paths(own: &Path) -> Vec<PresetPath> {
     let mut paths = vec![PresetPath { path: own.to_string_lossy().into_owned(), recursive: false }];
@@ -361,6 +331,7 @@ fn load_factory() -> Result<Vec<VoiceEntry>> {
 
 impl DesktopApp {
     pub(super) fn load_factory_voices(&mut self) {
+        self.factory_voices_loaded = true;
         self.factory_voices.clear();
         self.factory_error = None;
         match load_factory() {

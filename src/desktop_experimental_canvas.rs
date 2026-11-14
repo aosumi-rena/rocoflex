@@ -4,7 +4,7 @@ use super::experimental_math::{self as math, V3};
 use std::sync::Arc;
 
 #[derive(Clone)]
-struct Scene3 { sources: Vec<math::MixSource>, has_depth: bool }
+pub(super) struct Scene3 { pub(super) sources: Vec<math::MixSource>, has_depth: bool }
 struct AxisDrag {
     axis: usize, press: [f64;2], origin: V3, rect: Rect, camera: math::Camera,
     undo: Option<transactions::UndoEntry>,
@@ -167,7 +167,7 @@ impl DesktopApp {
     pub(super) fn experimental_preset_output(&self)->bool {
         self.experimental_uses_preset_features() || self.preset.document.get("rocoflexExperimentalCanvas").is_some()
     }
-    fn experimental_scene(&mut self) -> std::result::Result<Arc<Scene3>,String> {
+    pub(super) fn experimental_scene(&mut self) -> std::result::Result<Arc<Scene3>,String> {
         if let Some((revision,scene))=&self.experimental.scene {
             if *revision==self.experimental.geometry_epoch {return Ok(scene.clone());}
         }
@@ -745,7 +745,7 @@ fn experimental_check_row(ui:&mut egui::Ui,width:f32,id:&'static str,label:&str,
     if first && changed {*current=next;return true;}
     false
 }
-fn hit_axis(origin:V3,camera:math::Camera,size:[f64;2],pointer:[f64;2])->Option<usize> {
+pub(super) fn hit_axis(origin:V3,camera:math::Camera,size:[f64;2],pointer:[f64;2])->Option<usize> {
     let mut best=None;
     for axis in 0..3 {
         let Some([a,_,b])=camera.axis_projection(origin,axis,size) else {continue;};

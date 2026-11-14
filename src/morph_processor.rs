@@ -32,6 +32,8 @@ mod live;
 #[path="morph_input_gain.rs"]
 pub(crate) mod input_gain;
 use input_gain::InputGain;
+#[path = "morph_offline.rs"]
+pub(crate) mod offline;
 #[path="morph_input_meter.rs"]
 pub(crate) mod input_meter;
 

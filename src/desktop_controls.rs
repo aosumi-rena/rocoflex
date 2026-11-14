@@ -643,8 +643,11 @@ impl DesktopApp {
         }
     }
     fn toggle_menu(&mut self, menu: Menu) {
-        if self.menu.is_none() && menu == Menu::Library && !self.library_scan.busy() {
-            if let Err(error) = self.library_scan.request(&self.preset_paths) { self.error = Some(error); }
+        if self.menu.is_none() && menu == Menu::Library {
+            if self.integration_hosted && !self.factory_voices_loaded { self.load_factory_voices(); }
+            if !self.library_scan.busy()
+                && let Err(error) = self.library_scan.request(&self.preset_paths)
+            { self.error = Some(error); }
         }
         self.menu = if self.menu.is_some() {
             None
