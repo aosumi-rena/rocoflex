@@ -14,7 +14,7 @@ pub(crate) struct SourceFeatures<'a> {
 
 pub(crate) struct MorphEngine {
     decoder:Decoder, synthesis:Option<SynthesisBackend>,pipeline:Option<Pipeline>,
-    feature_transform:FeatureTransform,
+    feature_transform:Option<FeatureTransform>,
     synthesis_rows:Vec<Row>,submitted:u64,
     decoded_frames:Vec<DecoderFrame>,
     accepted:u64,
@@ -42,6 +42,18 @@ impl MorphEngine {
             }
             SynthesisFamily::Alternate=>SynthesisBackend::alternate(userdata,seed)?,
         };
+        Self::with_synthesis(decoder,synthesis,Some(feature_transform),selection)
+    }
+
+    pub(crate) fn new_legacy(analysis:&[u8],vocoder:&[u8],seed:u32,
+        selection:SynthesisSelection)->Result<Self> {
+        let profile=crate::prepare_quality::PrepareProfile::Highest;
+        let decoder=Decoder::from_dnni(analysis,profile.decoder_child(),0x853c_49e6_748f_ea9b_u64)?;
+        Self::with_synthesis(decoder,SynthesisBackend::legacy(vocoder,seed)?,None,selection)
+    }
+
+    fn with_synthesis(decoder:Decoder,synthesis:SynthesisBackend,feature_transform:Option<FeatureTransform>,
+        selection:SynthesisSelection)->Result<Self> {
         let selection=selection.avoid_nested(synthesis.uses_inner_worker())?;
 
         let count_inputs=(|| {
@@ -83,8 +95,7 @@ impl MorphEngine {
 
         for frame in self.decoded_frames.drain(..) {
             if self.decoded!=frame.ordinal {return Err("Decoder feature ordinal mismatch".into());}
-            let coefficients_result=self.feature_transform.transform(&frame.feature72);
-            let coefficients=coefficients_result?;
+            let coefficients=transform(self.feature_transform.as_ref(),&frame.feature72)?;
 
             let synthesis_result=self.synthesis.as_mut().ok_or("Missing serial synthesis owner")?
                 .process(&frame.feature72,&coefficients,output);
@@ -147,7 +158,7 @@ impl MorphEngine {
         let mut end=self.submitted;
         for frame in self.decoded_frames.drain(..) {
             if frame.ordinal!=end {return Err("Pipeline decoded feature ordinal mismatch".into());}
-            let normalized=self.feature_transform.transform(&frame.feature72)?;
+            let normalized=transform(self.feature_transform.as_ref(),&frame.feature72)?;
             self.synthesis_rows.push(Row {ordinal:frame.ordinal,raw:frame.feature72,normalized});
             end=end.checked_add(1).ok_or("Pipeline submitted ordinal overflow")?;
         }
@@ -158,5 +169,9 @@ impl MorphEngine {
         self.submitted=end;
         Ok(())
     }
+}
+
+fn transform(transform:Option<&FeatureTransform>,raw:&[f32;72])->Result<[f32;72]> {
+    match transform {Some(owner)=>owner.transform(raw),None=>Ok(*raw)}
 }
 

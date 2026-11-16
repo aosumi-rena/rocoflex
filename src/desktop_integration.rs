@@ -40,6 +40,8 @@ pub fn integration_editor() -> Result<()> {
         let layout_busy = app.layout_blocked() || app.layout.active();
         let busy = layout_busy || app.library_scan.busy() || app.model_inspection.busy()
             || app.userdata_load.busy() || app.generation_busy();
+        #[cfg(windows)]
+        let busy = busy || app.legacy_vocoder_load.busy();
         let mut next = wire::Frame { size, unsettled: dirty || layout_busy, busy, ..Default::default() };
         if dirty && !layout_busy && !ctx.input(|i| i.pointer.any_down()) {
             match app.prepare_saved_snapshot(None).and_then(|saved| {

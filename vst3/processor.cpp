@@ -461,8 +461,7 @@ private:
     bool captureActiveReconfigurationLocked(uint64_t beforeConfiguration,ActiveReconfiguration& result) const {
         const auto current=std::atomic_load(&state_);
         if (current->configuration==beforeConfiguration || !active_.load() || !setupDone_
-            || !hasConditionTarget(current->value.condition.mode)
-            || current->value.analysisPath.empty() || current->value.userdataPath.empty()) return false;
+            || !hasConditionTarget(current->value.condition.mode)) return false;
         captureControlContextLocked(result.context);
         result.processingCommand=processingCommandSerial_;result.processing=processing_.load();
         return true;
@@ -538,15 +537,13 @@ private:
             std::lock_guard<std::mutex> lock(control_);rejectLocked(code,fromBridge,detail);
         };
         try {
-            const bool wet=hasConditionTarget(state->value.condition.mode)
-                && !state->value.analysisPath.empty() && !state->value.userdataPath.empty();
+            const bool wet=hasConditionTarget(state->value.condition.mode);
             uint32 candidateD=oldD;
             if (wet) {
                 auto result=roco_plugin_set_condition(bridge_,&state->value.condition);
                 RocoPrepareInfo info{};
                 const auto policy=!routeReady && oldD==6000 ? RocoFixed6000 : RocoPreparedCount;
-                if (result==kBridgeOk) result=roco_plugin_prepare(bridge_,state->value.analysisPath.c_str(),
-                    state->value.userdataPath.c_str(),48000,setup_.maxSamplesPerBlock,0,
+                if (result==kBridgeOk) result=roco_plugin_prepare(bridge_,48000,setup_.maxSamplesPerBlock,0,
                     static_cast<uint32_t>(state->quality.profile),static_cast<uint32_t>(policy),
                     requestedMultithread?1u:0u,&info);
                 if (result!=kBridgeOk) {reject(result,true,nullptr);return kResultFalse;}
@@ -726,7 +723,7 @@ private:
         reply.phase = state.phase; reply.code = state.code;
         if (activationDetail_) reply.detail=activationDetail_;
         else if (latencyTransportFailed_) reply.detail="Host latency-change message delivery failed; the declaration remains available for catchup.";
-        if (const auto* issue=qualityIssue(current->quality)) {
+        if (const auto* issue=qualityIssue(current->quality); issue && state.code==kBridgeNotReady) {
             reply.phase=Protocol::Phase::NotPrepared;reply.code=kBridgeNotReady;
             reply.detail=issue;return reply;
         }

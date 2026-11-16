@@ -6,7 +6,7 @@ mod accessibility;
 mod navigation;
 mod platform;
 mod gpu;
-use std::{cell::{Cell, RefCell}, ffi::{c_char, c_void, CStr}, panic::{catch_unwind, AssertUnwindSafe},
+use std::{cell::{Cell, RefCell}, ffi::{c_char, c_void}, panic::{catch_unwind, AssertUnwindSafe},
     ptr, rc::Rc, time::{Duration, Instant}, thread::{self, ThreadId}};
 use eframe::egui;
 use windows::Win32::{Foundation::{HWND, WPARAM, LPARAM}, System::Threading::GetCurrentThreadId,
@@ -73,7 +73,7 @@ struct EditorData {
     app: Option<DesktopApp>, bus: crate::current_condition::ConditionBus,
     condition: crate::current_condition::ConditionReader, condition_revision: Option<u64>,
     staged_restore: Option<RestoreRequest>, document_revision: u64, serialized_document: Option<String>,
-    paths: [String; 2], multithread: bool,
+    multithread: bool,
     multithread_mailbox: std::sync::Arc<std::sync::atomic::AtomicU8>,
     revision: u64, accepted_error_event: u64,
 }
@@ -116,12 +116,10 @@ impl EditorData {
     }
     fn refresh(&mut self) {
         let Some(app) = &self.app else { return; };
-        let paths = app.plugin_model_paths();
-        let document_changed = self.document_revision != app.plugin_document_revision();
-        if document_changed || self.paths[0] != paths[0] || self.paths[1] != paths[1] {
+        if self.document_revision != app.plugin_document_revision() {
             self.document_revision = app.plugin_document_revision();
-            if document_changed { self.serialized_document = None; }
-            self.paths = paths.map(str::to_owned); self.changed();
+            self.serialized_document = None;
+            self.changed();
         }
     }
 }
@@ -168,12 +166,7 @@ impl SharedEditor {
         let mut data = self.data.borrow_mut();
         let mut app = DesktopApp::new_plugin(&self.context, data.bus.clone());
 
-        let configured = app.plugin_model_paths();
-        let paths: [String; 2] = std::array::from_fn(|i| {
-            if data.paths[i].is_empty() { configured[i].to_owned() }
-            else { data.paths[i].clone() }
-        });
-        app.set_plugin_model_paths(paths[0].clone(), paths[1].clone());
+        let paths = app.plugin_model_paths().map(str::to_owned);
         let restore = data.staged_restore.as_ref().ok_or("The host has not supplied a complete editor snapshot.")?;
         let retained = self.session.borrow_mut().as_mut().ok_or("Missing editor session lease.")?.take()?;
         if let Some(retained) = retained.filter(|value|value.matches(&restore.document, &paths, &restore.expected)) {
@@ -348,7 +341,7 @@ pub unsafe extern "C" fn roco_editor_open(plugin: *mut RocoPlugin, parent: *mut 
             session: RefCell::new(Some(lease)),
             data: RefCell::new(EditorData { app: None, condition: bus.reader(), bus, condition_revision: None,
                 staged_restore: None, document_revision: 0, serialized_document: None,
-                paths: Default::default(), multithread: true,
+                multithread: true,
                 multithread_mailbox, revision: 1, accepted_error_event: 0 }),
             error: RefCell::new(None), platform: RefCell::new(None), gpu: RefCell::new(None), input_meter: Cell::new(None), input_pitch: Cell::new(0) });
         Ok(Box::into_raw(Box::new(RocoEditor { shared })))
@@ -513,12 +506,6 @@ pub unsafe extern "C" fn roco_editor_set_multithread(handle:*mut RocoEditor, val
     })
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn roco_editor_get_model_path(handle: *const RocoEditor, which: u32, buffer: *mut c_char, capacity: usize) -> usize {
-    call(0, || { let editor = unsafe { editor(handle) }?; available(editor)?;
-        let data = editor.shared.data.try_borrow().map_err(|_| "Editor state is busy")?;
-        Ok(unsafe { copy_text(data.paths.get(which as usize).ok_or("Unknown model path index")?, buffer, capacity) }) })
-}
-#[unsafe(no_mangle)]
 pub unsafe extern "C" fn roco_editor_set_state(handle: *mut RocoEditor, state: *const c_char, length: usize,
     condition: *const plugin_bridge::RocoCondition) -> i32 {
     call(-2, || { let editor = unsafe { editor(handle) }?; available(editor)?;
@@ -555,22 +542,6 @@ pub unsafe extern "C" fn roco_editor_set_state(handle: *mut RocoEditor, state: *
         data.serialized_document = None;
         data.condition_revision = None; data.changed();
         editor.shared.input.repaint.request(Duration::ZERO); Ok(0)
-    })
-}
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn roco_editor_set_model_paths(handle: *mut RocoEditor, analysis: *const c_char, userdata: *const c_char) -> i32 {
-    call(-2, || { let editor = unsafe { editor(handle) }?; available(editor)?;
-        if analysis.is_null() || userdata.is_null() { return Err("Missing model path string.".into()); }
-        let paths = [unsafe { CStr::from_ptr(analysis) }.to_str().map_err(|e| e.to_string())?.to_owned(),
-            unsafe { CStr::from_ptr(userdata) }.to_str().map_err(|e| e.to_string())?.to_owned()];
-        let Ok(mut data) = editor.shared.data.try_borrow_mut() else { return Ok(2); };
-        if data.paths != paths { if let Some(app) = &mut data.app {
-                editor.shared.input.mute_waypoint_keys();
-                app.set_plugin_model_paths(paths[0].clone(), paths[1].clone());
-                editor.shared.publish_key_owner(app, false);
-            }
-            data.paths = paths; data.changed(); editor.shared.input.repaint.request(Duration::ZERO); }
-        Ok(0)
     })
 }
 #[unsafe(no_mangle)]

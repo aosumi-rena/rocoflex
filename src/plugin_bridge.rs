@@ -1,4 +1,4 @@
-use std::{ffi::{c_char,CStr},path::Path,ptr,sync::{Mutex,TryLockError,
+use std::{ffi::c_char,ptr,sync::{Mutex,TryLockError,
     atomic::{AtomicBool,Ordering}},panic::{catch_unwind,AssertUnwindSafe}};
 use crate::{Result,current_condition::{ConditionAbsence,ConditionBus,ConditionReader,ConditionTarget},
     prototype_controls::{Parameters,Snapshot},morph_processor::{PluginProcessor,LatencyPreparation,PLUGIN_LATENCY_SAMPLES,input_gain::InputGain}};
@@ -217,8 +217,7 @@ pub unsafe extern "C" fn roco_plugin_take_multithread_edit(handle:*const RocoPlu
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn roco_plugin_prepare(handle:*mut RocoPlugin,
-    analysis:*const c_char,userdata:*const c_char,sample_rate:u32,
-    max_block_frames:u32,input_channel:u32,profile:u32,latency_policy:u32,
+    sample_rate:u32,max_block_frames:u32,input_channel:u32,profile:u32,latency_policy:u32,
     multithread:u32,out:*mut RocoPrepareInfo)->i32
 {
 
@@ -235,18 +234,19 @@ pub unsafe extern "C" fn roco_plugin_prepare(handle:*mut RocoPlugin,
             plugin.ready.clear_poison();
         }
         if out.is_null() {return Err(invalid("Missing prepared latency output."));}
-        let profile=crate::prepare_quality::PrepareProfile::try_from(profile)
-            .map_err(|error|Failure(NOT_READY,error))?;
         let latency_policy=LatencyPreparation::try_from(latency_policy).map_err(|e|Failure(INVALID,e))?;
         if multithread>1 {return Err(invalid("Invalid per-instance multithread preference."));}
-        if analysis.is_null() || userdata.is_null() {return Err(invalid("Missing model path."));}
         if input_channel>1 {return Err(invalid("Input channel must be left or right."));}
-
-        let analysis=unsafe {CStr::from_ptr(analysis)}.to_str().map_err(|_|invalid("Analysis path is not UTF-8."))?;
-        let userdata=unsafe {CStr::from_ptr(userdata)}.to_str().map_err(|_|invalid("Userdata path is not UTF-8."))?;
-        if analysis.is_empty() || userdata.is_empty() {return Err(invalid("Select both model files."));}
-        let processor=PluginProcessor::with_instance_policy(Path::new(analysis),Path::new(userdata),&plugin.bus,
-            sample_rate,max_block_frames as usize,profile,latency_policy,multithread!=0).map_err(failed)?;
+        let (analysis,synthesis,legacy)=crate::model_preferences::configured_models().map_err(failed)?;
+        let processor=if legacy {
+            PluginProcessor::with_legacy_vocoder(&analysis,&synthesis,&plugin.bus,
+                sample_rate,max_block_frames as usize,latency_policy,multithread!=0)
+        } else {
+            let profile=crate::prepare_quality::PrepareProfile::try_from(profile)
+                .map_err(|error|Failure(NOT_READY,error))?;
+            PluginProcessor::with_instance_policy(&analysis,&synthesis,&plugin.bus,
+                sample_rate,max_block_frames as usize,profile,latency_policy,multithread!=0)
+        }.map_err(failed)?;
         let latency=processor.prepared_latency();
         let info=RocoPrepareInfo {delay_samples:latency.delay_samples(),policy:latency.policy()};
         let (input,output)=prepare_audio_buffers(max_block_frames as usize).map_err(failed)?;

@@ -29,8 +29,7 @@ int32_t roco_plugin_invalidate_editor_session(RocoPlugin* plugin);
 uint32_t roco_plugin_read_multithread_preference(void);
 int32_t roco_plugin_try_read_multithread_preference(uint32_t* enabled);
 int32_t roco_plugin_take_multithread_edit(const RocoPlugin* plugin, uint32_t* enabled);
-int32_t roco_plugin_prepare(RocoPlugin* plugin, const char* analysis_utf8,
-    const char* userdata_utf8, uint32_t sample_rate, uint32_t max_block_frames,
+int32_t roco_plugin_prepare(RocoPlugin* plugin, uint32_t sample_rate, uint32_t max_block_frames,
     uint32_t input_channel, uint32_t quality_profile, uint32_t latency_input_policy,
     uint32_t multithread, RocoPrepareInfo* prepared);
 struct RocoQualityChoice { uint32_t profile; uint32_t defaulted_label; };
@@ -65,13 +64,9 @@ int32_t roco_editor_host_key(RocoEditor* editor, uint16_t unicode,
 int32_t roco_editor_cancel(RocoEditor* editor);
 void roco_editor_close(RocoEditor* editor);
 uint64_t roco_editor_state_revision(const RocoEditor* editor);
-size_t roco_editor_get_model_path(const RocoEditor* editor, uint32_t which,
-    char* buffer, size_t capacity);
 size_t roco_editor_get_state(const RocoEditor* editor, char* buffer, size_t capacity);
 int32_t roco_editor_set_multithread(RocoEditor* editor, uint32_t enabled);
 int32_t roco_editor_set_state(RocoEditor* editor, const char* state, size_t length, const RocoCondition* expected);
-int32_t roco_editor_set_model_paths(RocoEditor* editor, const char* analysis_utf8,
-    const char* userdata_utf8);
 size_t roco_editor_last_error(char* buffer, size_t capacity);
 int32_t roco_editor_report_error(RocoEditor* editor, uint64_t event_id,
     const char* utf8, size_t length);
@@ -155,8 +150,7 @@ inline const char* qualityIssue(QualityChoice choice) {
 }
 inline bool graphReprepareRequired(const PluginState& before,const PluginState& after,
     QualityChoice previous,QualityChoice next) {
-    return before.analysisPath!=after.analysisPath || before.userdataPath!=after.userdataPath
-        || previous.profile!=next.profile
+    return previous.profile!=next.profile
         || (!hasConditionTarget(before.condition.mode) && hasConditionTarget(after.condition.mode));
 }
 static_assert(sizeof(RocoQualityChoice)==8 && alignof(RocoQualityChoice)==4);

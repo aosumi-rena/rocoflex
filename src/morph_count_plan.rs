@@ -1,6 +1,7 @@
 pub(crate) const COUNT_HOP:u64=240;
 pub(crate) const COUNT_POLICY_VERSION:u32=1;
 pub(crate) const ALTERNATE_COUNT_POLICY_VERSION:u32=2;
+pub(crate) const LEGACY_COUNT_POLICY_VERSION:u32=3;
 #[derive(Clone,Copy,Debug,PartialEq,Eq,serde::Serialize)]
 pub(crate) enum Unsupported {
     Head2, AdvancedCursor, FailedCursor,
@@ -63,6 +64,7 @@ impl PreparedCountPlan {
         let branch_rows=match counts.policy_version {
             COUNT_POLICY_VERSION=>counts.coefficient_right_rows.checked_add(4).ok_or_else(overflow)?.max(5),
             ALTERNATE_COUNT_POLICY_VERSION=>counts.coefficient_right_rows.checked_add(1).ok_or_else(overflow)?.max(2),
+            LEGACY_COUNT_POLICY_VERSION=>counts.coefficient_right_rows,
             _=>return Err(Unavailable::Unsupported(Unsupported::UnknownTopology)),
         };
         let delay_hops=head.right_rows.checked_add(decoder_rows)

@@ -41,6 +41,11 @@ fn floats(data: &[u8]) -> Result<Vec<f32>> {
     Ok(result)
 }
 fn is_tag(node: &ModelNode<'_>, tag: &str) -> bool {
+    if node.version() == 1 {
+        let stored = node.tag.to_le_bytes();
+        return stored.get(..tag.len()) == Some(tag.as_bytes())
+            && stored.get(tag.len()..).is_some_and(|suffix| suffix.iter().all(|&b| b == 0));
+    }
     decoded_hashes(tag).contains(&(node.tag ^ 0x40dab9846f846a19))
 
         || (tag == "prim2" && [0xce8a79eed68f751b, 0x618fd1bc101c6bed,
@@ -512,7 +517,7 @@ impl NeuralConv {
     pub fn forward(&self, input: &[Vec<f32>]) -> Result<Vec<Vec<f32>>> {
         self.forward_with_padding(input,self.padding,self.padding)
     }
-    fn forward_with_padding(&self,input:&[Vec<f32>],left:usize,right:usize)->Result<Vec<Vec<f32>>> {
+    pub(crate) fn forward_with_padding(&self,input:&[Vec<f32>],left:usize,right:usize)->Result<Vec<Vec<f32>>> {
         if input.iter().any(|row| row.len() != self.input_width) { return Err("Convolution row width mismatch".into()); }
         let effective = (self.taps.len()-1)*self.dilation+1;
         let padded = input.len().checked_add(left).and_then(|n|n.checked_add(right)).ok_or("Convolution extent overflow")?;

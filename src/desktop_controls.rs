@@ -523,11 +523,13 @@ impl DesktopApp {
                     Rect::from_min_size(pos2(right - 147.0, bar.center().y - 12.0), vec2(96.0, 24.0));
                 self.overlay_rects.push(realtime);
                 let on = self.realtime();
+                let legacy_vocoder = self.legacy_vocoder_active();
                 if !available(self) {
                     ui.disable();
                 }
-                let mut response = ui.interact(realtime, ui.id().with("realtime"), Sense::click());
-                if on {
+                let mut response = ui.interact(realtime, ui.id().with("realtime"),
+                    if legacy_vocoder { Sense::hover() } else { Sense::click() });
+                if on && !legacy_vocoder {
                     ui.painter()
                         .rect_filled(realtime, 20, Color32::from_rgb(193, 194, 201));
                 } else {
@@ -543,13 +545,15 @@ impl DesktopApp {
                     Align2::CENTER_CENTER,
                     localization::tr(ctx, "Realtime"),
                     FontId::proportional(13.0),
-                    if on {
+                    if legacy_vocoder {
+                        MUTED
+                    } else if on {
                         Color32::from_rgb(48, 49, 57)
                     } else {
                         TEXT
                     },
                 );
-                if response.clicked() {
+                if response.clicked() && !legacy_vocoder {
                     self.remember();
                     self.preset.document["useRealtimeLatency"] = json!(!on);
                     if voice(&self.preset.document)
@@ -564,10 +568,12 @@ impl DesktopApp {
                 }
                 let realtime_label = localization::tr(ctx, "Realtime");
                 response.widget_info(|| egui::WidgetInfo::selected(
-                    egui::WidgetType::Checkbox, ui.is_enabled(), self.realtime(),
+                    egui::WidgetType::Checkbox, ui.is_enabled() && !legacy_vocoder, self.realtime(),
                     realtime_label,
                 ));
-                optional_tooltip(response, self.show_tooltips, if on {
+                optional_tooltip(response, self.show_tooltips, if legacy_vocoder {
+                    "Legacy vocoder uses Highest Quality."
+                } else if on {
                     "Turn off Realtime Mode to save CPU for applications where low latency is not required."
                 } else {
                     "Turn on Realtime Mode to optimize Vocoflex for live performance, which minimizes latency at the expense of CPU usage."
@@ -581,32 +587,37 @@ impl DesktopApp {
                 }
                 let quality_response = ui.interact(
                     quality, ui.id().with("quality"),
-                    if on { Sense::click() } else { Sense::hover() },
+                    if on && !legacy_vocoder { Sense::click() } else { Sense::hover() },
                 );
                 let quality_label = localization::tr(ctx,
                     "Adjust how the algorithm balances latency with audio quality.");
                 let translated_quality = localization::tr(ctx,
-                    match crate::prepare_quality::Preferences::from_document(&self.preset.document) {
-                        Ok(_)=>quality_names()[self.quality()], Err(_)=>"Invalid quality",
+                    if legacy_vocoder { "Highest Quality" } else {
+                        match crate::prepare_quality::Preferences::from_document(&self.preset.document) {
+                            Ok(_)=>quality_names()[self.quality()], Err(_)=>"Invalid quality",
+                        }
                     });
                 quality_response.widget_info(|| {
                     let mut info = egui::WidgetInfo::labeled(
-                        egui::WidgetType::ComboBox, ui.is_enabled() && on, quality_label,
+                        egui::WidgetType::ComboBox, ui.is_enabled() && on && !legacy_vocoder, quality_label,
                     );
                     info.current_text_value = Some(translated_quality.to_owned());
                     info
                 });
-                if on && quality_response.hovered() {
+                if on && !legacy_vocoder && quality_response.hovered() {
                     ui.painter().rect_filled(quality, 5, Color32::from_black_alpha(28));
                 }
                 ui.painter().text(
                     quality.left_center() + vec2(17.0, 0.0), Align2::LEFT_CENTER,
                     translated_quality, FontId::proportional(13.0),
-                    if on { TEXT } else { Color32::from_gray(131) },
+                    if on && !legacy_vocoder { TEXT } else { Color32::from_gray(131) },
                 );
-                optional_tooltip(quality_response.clone(), self.show_tooltips,
-                    "Adjust how the algorithm balances latency with audio quality.");
-                if quality_response.clicked() && on {
+                optional_tooltip(quality_response.clone(), self.show_tooltips, if legacy_vocoder {
+                    "Legacy vocoder uses Highest Quality."
+                } else {
+                    "Adjust how the algorithm balances latency with audio quality."
+                });
+                if quality_response.clicked() && on && !legacy_vocoder {
                     self.toggle_menu(Menu::Quality);
                 }
                 menu_trigger_semantics(&quality_response, self.menu == Some(Menu::Quality));
@@ -617,7 +628,7 @@ impl DesktopApp {
                         vec2(18.0, 18.0),
                     ),
                     Icon::Chevron,
-                    if on { TEXT } else { MUTED },
+                    if on && !legacy_vocoder { TEXT } else { MUTED },
                 );
                 if matches!(self.menu, Some(Menu::Library | Menu::Actions)) {
                     self.menu_rects.push(bar);
@@ -986,6 +997,7 @@ impl DesktopApp {
                 glass(ui.painter(), rect, &[], true);
                 for (row_index, index) in (0..quality_names().len()).rev().enumerate() {
                     let available = self.menu == Some(Menu::Quality) && self.realtime()
+                        && !self.legacy_vocoder_active()
                         && !self.layout_blocked() && !self.settings
                         && self.editor.is_none() && !self.color_picker
                         && self.error.is_none() && self.notice.is_none();
@@ -1134,6 +1146,8 @@ impl DesktopApp {
         self.overlay_rects.push(rect);
         let lights = self.ambient_lights(full);
         let paths_before = self.model_paths.clone();
+        let before_legacy_enabled = self.use_legacy_vocoder;
+        let before_legacy_vocoder = self.legacy_vocoder.clone();
         let ffmpeg_before = self.ffmpeg_path.clone();
         let before_tooltips = self.show_tooltips;
         let before_multithread = self.live.multithread();
@@ -1316,7 +1330,8 @@ impl DesktopApp {
         else if self.shortcuts.editing() { self.shortcut_assignment_dialog(ctx, full); }
         let multithread_changed = before_multithread != self.live.multithread();
         let changed = paths_before != self.model_paths || ffmpeg_before != self.ffmpeg_path
-            || before_tooltips != self.show_tooltips || before_locale != self.locale;
+            || before_tooltips != self.show_tooltips || before_locale != self.locale
+            || before_legacy_enabled != self.use_legacy_vocoder || before_legacy_vocoder != self.legacy_vocoder;
         #[cfg(windows)]
         let changed = changed || audio_before != self.audio_devices.selection;
         #[cfg(windows)]

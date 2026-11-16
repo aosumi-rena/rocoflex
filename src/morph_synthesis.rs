@@ -297,6 +297,7 @@ mod alternate;
 pub(crate) enum SynthesisBackend {
     Primary(Box<WaveformSynthesis>),
     Alternate(Box<alternate::AlternateWaveformSynthesis>),
+    Legacy(Box<super::legacy_vocoder::LegacyVocoder>),
 }
 impl SynthesisBackend {
     pub(crate) fn primary(networks:SynthesisNetworks,noise:bool,seed:u32,
@@ -306,25 +307,45 @@ impl SynthesisBackend {
     pub(crate) fn alternate(userdata:&[u8],seed:u32)->Result<Self> {
         Ok(Self::Alternate(Box::new(alternate::AlternateWaveformSynthesis::new(userdata,seed)?)))
     }
+    pub(crate) fn legacy(model:&[u8],seed:u32)->Result<Self> {
+        Ok(Self::Legacy(Box::new(super::legacy_vocoder::LegacyVocoder::new(model,seed)?)))
+    }
     pub(crate) fn prepared_count_inputs(&self)->super::count_plan::Query<(u64,u32)> {
         match self {
             Self::Primary(owner)=>owner.prepared_count_inputs().map(|rows|
                 (rows,super::count_plan::COUNT_POLICY_VERSION)),
             Self::Alternate(owner)=>owner.prepared_count_inputs().map(|rows|
                 (rows,super::count_plan::ALTERNATE_COUNT_POLICY_VERSION)),
+            Self::Legacy(owner)=>owner.prepared_count_inputs().map(|rows|
+                (rows,super::count_plan::LEGACY_COUNT_POLICY_VERSION)),
         }
     }
     pub(crate) fn process(&mut self,raw:&[f32],feature:&[f32],out:&mut Vec<f32>)->Result<()> {
-        match self {Self::Primary(owner)=>owner.process(raw,feature,out),
-            Self::Alternate(owner)=>owner.process(raw,feature,out)}
+        match self {
+            Self::Primary(owner)=>owner.process(raw,feature,out),
+            Self::Alternate(owner)=>owner.process(raw,feature,out),
+            Self::Legacy(owner)=>owner.process(raw,out),
+        }
     }
     pub(crate) fn uses_inner_worker(&self)->bool {
-        match self {Self::Primary(owner)=>owner.vocoder.is_worker(),Self::Alternate(owner)=>owner.uses_inner_worker()}
+        match self {
+            Self::Primary(owner)=>owner.vocoder.is_worker(),
+            Self::Alternate(owner)=>owner.uses_inner_worker(),
+            Self::Legacy(_)=>false,
+        }
     }
-    pub(crate) fn statistics(&self)->SynthesisStatistics {
-        match self {Self::Primary(owner)=>owner.statistics(),Self::Alternate(owner)=>owner.statistics()}
+    pub(crate) fn statistics(&self)->Option<SynthesisStatistics> {
+        match self {
+            Self::Primary(owner)=>Some(owner.statistics()),
+            Self::Alternate(owner)=>Some(owner.statistics()),
+            Self::Legacy(_)=>None,
+        }
     }
-    pub(crate) fn startup_progress(&self)->SynthesisStartupProgress {
-        match self {Self::Primary(owner)=>owner.startup_progress(),Self::Alternate(owner)=>owner.startup_progress()}
+    pub(crate) fn startup_progress(&self)->Option<SynthesisStartupProgress> {
+        match self {
+            Self::Primary(owner)=>Some(owner.startup_progress()),
+            Self::Alternate(owner)=>Some(owner.startup_progress()),
+            Self::Legacy(_)=>None,
+        }
     }
 }

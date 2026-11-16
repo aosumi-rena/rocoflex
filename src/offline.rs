@@ -47,14 +47,21 @@ pub fn run_request(path: &Path) -> Result<Response> {
 
 pub fn check_models() -> Result<()> {
     #[cfg(all(windows, feature = "desktop"))]
-    { model_paths().map(|_| ()) }
+    {
+        let (_, synthesis, legacy) = model_paths()?;
+        if legacy {
+            let bytes = crate::model::read_bytes(&synthesis, crate::morph_processor::LEGACY_VOCODER_MAX_BYTES)?;
+            crate::morph_processor::inspect_legacy_vocoder(&bytes)?;
+        }
+        Ok(())
+    }
     #[cfg(not(all(windows, feature = "desktop")))]
     { Err("Offline synthesis requires the Windows desktop provider build.".into()) }
 }
 
 #[cfg(all(windows, feature = "desktop"))]
-fn model_paths() -> Result<(PathBuf, PathBuf)> {
-    let (analysis, synthesis) = crate::desktop::offline_model_paths()?;
+fn model_paths() -> Result<(PathBuf, PathBuf, bool)> {
+    let (analysis, synthesis, legacy) = crate::desktop::offline_model_selection()?;
     let required = |path: &Path, label: &str| {
         let invalid = || format!("Choose a valid {label} file in Rocoflex Settings.");
         let resolved = io::model_path(path).map_err(|error| format!("{} {error}", invalid()))?;
@@ -63,14 +70,15 @@ fn model_paths() -> Result<(PathBuf, PathBuf)> {
         }
         Ok(resolved)
     };
-    Ok((required(&analysis, "analysis model")?, required(&synthesis, "userdata")?))
+    let name = if legacy { "legacy vocoder" } else { "userdata" };
+    Ok((required(&analysis, "analysis model")?, required(&synthesis, name)?, legacy))
 }
 
 #[cfg(all(windows, feature = "desktop"))]
 pub fn render(request: Request) -> Result<Response> {
     if request.version != 2 { return Err("Unsupported offline protocol version.".into()); }
     let parameters = parameters(&request)?;
-    let (analysis, synthesis) = model_paths()?;
+    let (analysis, synthesis, legacy) = model_paths()?;
     let _fp = crate::morph_processor::offline::Environment::enter();
     let preset = crate::preset::Preset::parse(io::read_json(&request.preset, 16 * 1024 * 1024)?)?;
     let snapshot = crate::desktop::offline_snapshot(preset, parameters)?
@@ -81,7 +89,7 @@ pub fn render(request: Request) -> Result<Response> {
         _ => return Err("Provide a PCM file or an exact frame count for stdin.".into()),
     };
     let output = io::Output::create(&request.output, request.progress.as_deref())?;
-    crate::morph_processor::offline::render(&analysis, &synthesis, snapshot, input, output)
+    crate::morph_processor::offline::render(&analysis, &synthesis, legacy, snapshot, input, output)
 }
 
 #[cfg(not(all(windows, feature = "desktop")))]

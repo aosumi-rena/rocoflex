@@ -3,7 +3,7 @@ use crate::{Result, current_condition::ConditionBus, offline::{Response, io::{In
 use super::{input_gain::InputGain, live::LiveGraph};
 use std::path::Path;
 
-pub(crate) fn render(analysis_model: &Path, synthesis_model: &Path, snapshot: Snapshot,
+pub(crate) fn render(analysis_model: &Path, synthesis_model: &Path, legacy: bool, snapshot: Snapshot,
     mut input: Input, mut output: Output) -> Result<Response>
 {
     let _fp = Environment::enter();
@@ -11,9 +11,14 @@ pub(crate) fn render(analysis_model: &Path, synthesis_model: &Path, snapshot: Sn
     let parameters = snapshot.parameters;
     let bus = ConditionBus::new();
     bus.publish_canvas(snapshot)?;
-    let (analysis, synthesis) = super::read_models(analysis_model, synthesis_model)?;
-    let mut graph = LiveGraph::with_instance_policy(&analysis, &synthesis, bus.reader(),
-        crate::prepare_quality::PrepareProfile::Highest, false)?;
+    let mut graph = if legacy {
+        let (analysis, synthesis) = super::read_legacy_models(analysis_model, synthesis_model)?;
+        LiveGraph::with_legacy_vocoder(&analysis, &synthesis, bus.reader(), false)?
+    } else {
+        let (analysis, synthesis) = super::read_models(analysis_model, synthesis_model)?;
+        LiveGraph::with_instance_policy(&analysis, &synthesis, bus.reader(),
+            crate::prepare_quality::PrepareProfile::Highest, false)?
+    };
     let plan = graph.prepared_count_plan()
         .map_err(|error| format!("Offline output count is unavailable: {error:?}"))?;
     let rounded = input_frames.checked_add(239).ok_or("Offline input length overflow.")? / 240 * 240;

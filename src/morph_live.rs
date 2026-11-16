@@ -62,9 +62,22 @@ impl LiveGraph {
     }
     fn with_selection(analysis:&[u8],userdata:&[u8],reader:ConditionReader,
         profile:crate::prepare_quality::PrepareProfile,selection:super::engine::SynthesisSelection)->Result<Self> {
+        Self::with_engine(analysis,reader,profile,||
+            MorphEngine::new(analysis,userdata,profile,1,selection))
+    }
+
+    pub(crate) fn with_legacy_vocoder(analysis:&[u8],vocoder:&[u8],reader:ConditionReader,
+        multithread:bool)->Result<Self> {
+        let selection=super::engine::SynthesisSelection::for_instance(multithread)?;
+        Self::with_engine(analysis,reader,crate::prepare_quality::PrepareProfile::Highest,||
+            MorphEngine::new_legacy(analysis,vocoder,1,selection))
+    }
+
+    fn with_engine(analysis:&[u8],reader:ConditionReader,
+        profile:crate::prepare_quality::PrepareProfile,engine:impl FnOnce()->Result<MorphEngine>)->Result<Self> {
         Ok(Self {framing:FixedHopStream::new(240)?,source:SourceProducer::with_head(analysis,profile.pitch_head())?,
 
-            engine:MorphEngine::new(analysis,userdata,profile,1,selection)?,reader,
+            engine:engine()?,reader,
             tone:ToneConditionProvider {generator:ToneGenerator::from_dnni(analysis)?,cached:None},
             input_filters:SourceInputFilters::new_reference_48k(),
             levels:AudioLevels::new_source_defaults(),source_frames:Vec::new(),

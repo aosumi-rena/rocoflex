@@ -8,6 +8,7 @@ mod condition_cache;
 struct LiveModels {
     analysis_model: PathBuf,
     synthesis_model: PathBuf,
+    legacy_vocoder: bool,
     profile: crate::Result<crate::prepare_quality::PrepareProfile>,
     multithread: bool,
 }
@@ -213,6 +214,28 @@ impl DesktopApp {
         if self.plugin_hosted || self.layout_blocked() {
             return None;
         }
+        #[cfg(windows)]
+        if self.legacy_vocoder_active() {
+            if self.model_paths[0].trim().is_empty() {
+                return Some("Choose the analysis model in Resources & Workspace.");
+            }
+            if self.legacy_vocoder.trim().is_empty() {
+                return Some("Choose a legacy vocoder in Resources & Workspace.");
+            }
+            match self.legacy_vocoder_load.status(&self.legacy_vocoder) {
+                Some(Ok(())) => {}
+                Some(Err(_)) => return Some("Invalid legacy vocoder. Check Resources & Workspace."),
+                None => return Some("Inspecting legacy vocoder..."),
+            }
+        } else {
+            match (self.model_paths[0].trim().is_empty(), self.model_paths[1].trim().is_empty()) {
+                (true, true) => return Some("Choose the analysis model and morphing data in Resources & Workspace."),
+                (true, false) => return Some("Choose the analysis model in Resources & Workspace."),
+                (false, true) => return Some("Choose the morphing data in Resources & Workspace."),
+                (false, false) => {}
+            }
+        }
+        #[cfg(not(windows))]
         match (self.model_paths[0].trim().is_empty(), self.model_paths[1].trim().is_empty()) {
             (true, true) => return Some("Choose the analysis model and morphing data in Resources & Workspace."),
             (true, false) => return Some("Choose the analysis model in Resources & Workspace."),
@@ -277,13 +300,21 @@ impl DesktopApp {
     fn desired_live_request(&mut self) -> Option<LiveRequest> {
         if !self.settings {
             let analysis_model = PathBuf::from(self.model_paths[0].trim());
-            let synthesis_model = PathBuf::from(self.model_paths[1].trim());
-            self.live.committed_models = if analysis_model.as_os_str().is_empty() || synthesis_model.as_os_str().is_empty() {
+            let legacy_vocoder = self.legacy_vocoder_active();
+            let synthesis_model = PathBuf::from(if legacy_vocoder {
+                self.legacy_vocoder.trim()
+            } else {
+                self.model_paths[1].trim()
+            });
+            let legacy_ready = !legacy_vocoder || self.legacy_vocoder_load.valid(&self.legacy_vocoder);
+            self.live.committed_models = if analysis_model.as_os_str().is_empty()
+                || synthesis_model.as_os_str().is_empty() || !legacy_ready {
                 None
             } else {
-                Some(LiveModels { analysis_model, synthesis_model,
-                    profile: crate::prepare_quality::Preferences::from_document(&self.preset.document)
-                        .and_then(|p| p.profile()), multithread: self.live.multithread })
+                Some(LiveModels { analysis_model, synthesis_model, legacy_vocoder,
+                    profile: if legacy_vocoder { Ok(crate::prepare_quality::PrepareProfile::Highest) }
+                        else { crate::prepare_quality::Preferences::from_document(&self.preset.document)
+                            .and_then(|p| p.profile()) }, multithread: self.live.multithread })
             };
         }
 
@@ -307,6 +338,12 @@ impl DesktopApp {
             if closing {
                 if let Some(session) = &self.live.session { session.stop(); }
                 return;
+            }
+
+            if !self.settings && self.legacy_vocoder_active() {
+                if let Some(error) = self.legacy_vocoder_load.take_error(&self.legacy_vocoder) {
+                    self.queue_live_error(error);
+                }
             }
 
             let desired = self.desired_live_request();
@@ -373,9 +410,15 @@ impl DesktopApp {
                 let (query, writer) = crate::morph_processor::input_meter::channel();
                 self.live.meter = Some(query);
                 crate::live_audio::start(configuration, move || {
-                    crate::morph_processor::build_processor_with_instance_policy(
-                        &models.analysis_model, &models.synthesis_model, reader, sample_rate,
-                        input_channel, writer, profile.expect("target profile checked"), models.multithread)
+                    if models.legacy_vocoder {
+                        crate::morph_processor::build_processor_with_legacy_vocoder(
+                            &models.analysis_model, &models.synthesis_model, reader, sample_rate,
+                            input_channel, writer, models.multithread)
+                    } else {
+                        crate::morph_processor::build_processor_with_instance_policy(
+                            &models.analysis_model, &models.synthesis_model, reader, sample_rate,
+                            input_channel, writer, profile.expect("target profile checked"), models.multithread)
+                    }
                 })
             }
         };

@@ -51,6 +51,8 @@ pub mod normalization;
 pub mod pitch_score;
 pub mod preset;
 pub mod offline;
+#[cfg(any(windows, feature = "desktop"))]
+mod model_preferences;
 #[cfg(feature = "desktop")]
 mod integration_wire;
 pub mod reduction;

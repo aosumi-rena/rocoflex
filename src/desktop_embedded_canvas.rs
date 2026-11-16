@@ -38,12 +38,11 @@ pub(super) fn install_document(app: &mut DesktopApp, preset: Preset) -> Result<(
 }
 
 pub fn offline_model_paths() -> Result<(PathBuf, PathBuf)> {
-    let settings = crate::offline::io::read_json(&preferences_dir().join("settings.json"), 1024 * 1024)
-        .map_err(|_| "Set the model and userdata in Rocoflex Settings")?;
-    let path = |key: &str| -> Result<PathBuf> {
-        settings[key].as_str().filter(|p| !p.trim().is_empty()).map(PathBuf::from)
-            .ok_or_else(|| "Set the model and userdata in Rocoflex Settings".into())
-    };
-    Ok((path("model")?, path("userdata")?))
+    let (analysis,synthesis,_) = offline_model_selection()?;
+    Ok((analysis,synthesis))
+}
+
+pub(crate) fn offline_model_selection() -> Result<(PathBuf, PathBuf, bool)> {
+    crate::model_preferences::configured_models()
 }
 

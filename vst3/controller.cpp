@@ -339,7 +339,6 @@ bool Controller::installState(PluginState state, QualityChoice quality) {
         if (!lastLocalCandidate_ && lastLocalError_==priorIssue) lastLocalError_.clear();
     }
     quality_=quality;
-    if (nextIssue) queueError(nextIssue);
     ++changeSerial_;
     if (documentChanged) ++stateRevision_;
     return true;
@@ -966,11 +965,8 @@ bool Controller::syncEditor(RocoEditor* editor, uint64_t& revision) {
                 if (getter(data.data(), data.size()) != length || data.back() != '\0') return false;
                 out.assign(data.data(), length-1); return true;
             };
-            if (!readString([&](char* p, size_t n) { return roco_editor_get_state(editor,p,n); }, next.documentJson)
-                || !readString([&](char* p, size_t n) { return roco_editor_get_model_path(editor,0,p,n); }, next.analysisPath)
-                || !readString([&](char* p, size_t n) { return roco_editor_get_model_path(editor,1,p,n); }, next.userdataPath)) return false;
-            changed = next.documentJson != state_.documentJson || next.analysisPath != state_.analysisPath
-                || next.userdataPath != state_.userdataPath;
+            if (!readString([&](char* p, size_t n) { return roco_editor_get_state(editor,p,n); }, next.documentJson)) return false;
+            changed = next.documentJson != state_.documentJson;
             revision = current;
         }
         RocoCondition condition; uint64_t conditionRevision = 0;
@@ -1302,8 +1298,6 @@ private:
     }
     int32_t restoreSnapshot(const PluginState& state) {
         const auto snapshot=state;
-        const auto paths=roco_editor_set_model_paths(editor_,snapshot.analysisPath.c_str(),snapshot.userdataPath.c_str());
-        if (paths!=0) return paths;
         return roco_editor_set_state(editor_,snapshot.documentJson.empty() ? nullptr : snapshot.documentJson.data(),snapshot.documentJson.size(), &snapshot.condition);
     }
     tresult hostKey(char16 key,int16 code,int16 modifiers,bool down) {

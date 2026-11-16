@@ -121,6 +121,102 @@ impl UserdataLoader {
 
 }
 
+#[cfg(windows)]
+struct LegacyVocoderJob {
+    epoch: u64,
+    path: String,
+    handle: std::thread::JoinHandle<crate::Result<()>>,
+}
+
+#[cfg(windows)]
+#[derive(Default)]
+pub(super) struct LegacyVocoderLoader {
+    epoch: u64,
+    path: Option<String>,
+    job: Option<LegacyVocoderJob>,
+    completed: Option<(u64, String, crate::Result<()>)>,
+    reported: Option<u64>,
+}
+
+#[cfg(windows)]
+impl LegacyVocoderLoader {
+    pub fn busy(&self) -> bool { self.job.is_some() }
+
+    pub fn invalidate(&mut self, path: &str) {
+        self.epoch = self.epoch.wrapping_add(1);
+        self.path = Some(path.to_owned());
+        self.completed = None;
+        self.reported = None;
+    }
+
+    pub fn status(&self, path: &str) -> Option<&crate::Result<()>> {
+        self.completed.as_ref().filter(|(epoch, completed_path, _)| {
+            *epoch == self.epoch && completed_path == path && self.path.as_deref() == Some(path)
+        }).map(|(_, _, result)| result)
+    }
+
+    pub fn valid(&self, path: &str) -> bool {
+        matches!(self.status(path), Some(Ok(())))
+    }
+
+    pub fn take_error(&mut self, path: &str) -> Option<String> {
+        if self.reported == Some(self.epoch) { return None; }
+        let error = if path.trim().is_empty() {
+            "Choose a legacy vocoder in Resources & Workspace.".to_owned()
+        } else {
+            match self.status(path) {
+                Some(Err(error)) => format!("Invalid legacy vocoder ({path}): {error}"),
+                _ => return None,
+            }
+        };
+        self.reported = Some(self.epoch);
+        Some(error)
+    }
+
+    pub fn poll(&mut self, ctx: &egui::Context, path: &str, validate: bool) {
+        if validate && self.path.as_deref() != Some(path) { self.invalidate(path); }
+        if self.job.as_ref().is_some_and(|job| job.handle.is_finished()) {
+            let job = self.job.take().expect("finished legacy vocoder inspection");
+            let result = job.handle.join().unwrap_or_else(|_| Err("Legacy vocoder inspection stopped unexpectedly.".into()));
+            if job.epoch == self.epoch && self.path.as_deref() == Some(job.path.as_str()) {
+                self.completed = Some((job.epoch, job.path, result));
+            }
+            ctx.request_repaint();
+        }
+        if self.job.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            return;
+        }
+        if !validate || path.trim().is_empty() || self.status(path).is_some() { return; }
+        let epoch = self.epoch;
+        let worker_path = path.to_owned();
+        let requested_path = worker_path.clone();
+        let repaint = ctx.clone();
+        match std::thread::Builder::new().name("legacy-vocoder-inspection".into()).spawn(move || {
+            let path = std::path::Path::new(worker_path.trim());
+            let result = if library::protected_model_path(path)
+                || path.canonicalize().is_ok_and(|resolved| library::protected_model_path(&resolved))
+            {
+                Err("Session and authentication files are not model inputs.".into())
+            } else {
+                crate::model::read_bytes(path, crate::morph_processor::LEGACY_VOCODER_MAX_BYTES)
+                    .and_then(|bytes| crate::morph_processor::inspect_legacy_vocoder(&bytes))
+            };
+            repaint.request_repaint();
+            result
+        }) {
+            Ok(handle) => {
+                self.job = Some(LegacyVocoderJob { epoch, path: requested_path, handle });
+                ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            }
+            Err(error) => {
+                self.completed = Some((epoch, requested_path, Err(format!("Could not start legacy vocoder inspection: {error}"))));
+                ctx.request_repaint();
+            }
+        }
+    }
+}
+
 fn heading(ui: &mut egui::Ui, title: &str, detail: &str) {
     let keep_english = title == "Canvas";
     controls::settings_section(ui, ui.available_width(), title);
@@ -211,9 +307,63 @@ impl DesktopApp {
         divider(ui);
         heading(ui, "Preset files", "");
         self.preset_paths_ui(ui);
-        if !self.resources_available() { return; }
         divider(ui);
-        self.experimental_features_ui(ui);
+        ui.add_enabled_ui(self.resources_available() && !message_open, |ui| {
+            self.experimental_features_ui(ui);
+            #[cfg(windows)]
+            self.legacy_vocoder_ui(ui, message_open);
+        });
+    }
+
+    #[cfg(windows)]
+    fn legacy_vocoder_ui(&mut self, ui: &mut egui::Ui, message_open: bool) {
+        let width = ui.available_width().min(492.0);
+        let row = controls::settings_row(ui, width, "Use Legacy Vocoder");
+        let check = Rect::from_center_size(pos2(row.right() - 12.0, row.center().y), vec2(24.0, 24.0));
+        let label_hit = Rect::from_min_max(row.min, pos2(check.left() - 4.0, row.bottom()));
+        let enabled = !message_open && self.resources_available() && ui.is_enabled();
+        let label = ui.interact(label_hit, ui.id().with("legacy-vocoder-label"),
+            if enabled { Sense::click() } else { Sense::hover() });
+        let mut next = self.use_legacy_vocoder;
+        let check_response = controls::settings_check(ui, check, "legacy-vocoder-toggle",
+            "Use Legacy Vocoder", &mut next, enabled);
+        if enabled && label.clicked() { next = !next; }
+        if ui.ctx().current_pass_index() == 0 && (check_response.changed() || (enabled && label.clicked())) {
+            self.use_legacy_vocoder = next;
+            self.legacy_vocoder_load.invalidate(&self.legacy_vocoder);
+            self.menu = None;
+        }
+
+        let label = ui.label(egui::RichText::new(localization::tr(ui.ctx(), "Legacy vocoder model (.dnni)"))
+            .size(12.0).color(TEXT));
+        let response = ui.add_sized([ui.available_width(), 24.0],
+            egui::TextEdit::singleline(&mut self.legacy_vocoder).interactive(enabled)
+                .hint_text(localization::tr(ui.ctx(), "No file selected"))
+                .font(FontId::proportional(13.0)).margin(vec2(9.0, 3.0))).labelled_by(label.id);
+        let mut changed = response.changed();
+        let mut inspect = false;
+        ui.horizontal(|ui| {
+            if resource_button(ui, "Choose legacy vocoder…", enabled).clicked()
+                && let Some(path) = rfd::FileDialog::new().add_filter("DNNI", &["dnni"]).pick_file()
+            {
+                if let Some(path) = path.to_str() {
+                    if self.legacy_vocoder != path { self.legacy_vocoder = path.to_owned(); changed = true; }
+                    else { inspect = true; }
+                } else {
+                    self.error = Some("The selected path cannot be represented as UTF-8. The current path was kept.".into());
+                }
+            }
+            inspect |= resource_button(ui, "Inspect model", enabled && !self.legacy_vocoder.trim().is_empty()).clicked();
+        });
+        if changed || inspect { self.legacy_vocoder_load.invalidate(&self.legacy_vocoder); }
+        if !self.legacy_vocoder.trim().is_empty() {
+            let status = match self.legacy_vocoder_load.status(&self.legacy_vocoder) {
+                Some(Ok(())) => localization::tr(ui.ctx(), "Valid legacy vocoder").to_owned(),
+                Some(Err(error)) => format!("{}: {error}", localization::tr(ui.ctx(), "Invalid legacy vocoder")),
+                None => localization::tr(ui.ctx(), "Inspecting legacy vocoder...").to_owned(),
+            };
+            ui.label(egui::RichText::new(status).size(12.0).color(MUTED));
+        }
     }
 
     fn preset_paths_ui(&mut self, ui: &mut egui::Ui) {

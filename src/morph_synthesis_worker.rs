@@ -43,7 +43,7 @@ impl Selection {
 pub(super) struct Row {pub ordinal:u64,pub raw:[f32;72],pub normalized:[f32;72]}
 #[derive(Clone,Copy)]
 pub(super) struct Progress {
-    pub statistics:SynthesisStatistics,pub startup:SynthesisStartupProgress,
+    pub statistics:Option<SynthesisStatistics>,pub startup:Option<SynthesisStartupProgress>,
 }
 trait Processor:Send+'static {
     type Progress:Copy+Send+'static;

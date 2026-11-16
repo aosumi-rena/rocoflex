@@ -43,6 +43,7 @@ mod experimental_canvas;
 #[path = "desktop_embedded_canvas.rs"]
 mod embedded_canvas;
 pub use embedded_canvas::{offline_model_paths, offline_snapshot};
+pub(crate) use embedded_canvas::offline_model_selection;
 #[path = "desktop_integration.rs"]
 mod integration;
 pub use integration::integration_editor;
@@ -291,6 +292,10 @@ pub struct DesktopApp {
     error: Option<String>,
     notice: Option<String>,
     model_paths: [String; 3],
+    saved_plugin_model_paths: [String; 2],
+    saved_plugin_vocoder: (bool, String),
+    use_legacy_vocoder: bool,
+    legacy_vocoder: String,
     ffmpeg_path: String,
     ffmpeg_detected: Option<PathBuf>,
     #[cfg(windows)]
@@ -298,6 +303,8 @@ pub struct DesktopApp {
     model_info: String,
     model_inspection: model_inspection::Controller,
     userdata_load: resources::UserdataLoader,
+    #[cfg(windows)]
+    legacy_vocoder_load: resources::LegacyVocoderLoader,
     show_tooltips: bool,
     locale: localization::Locale,
     mapping: usize,
@@ -434,6 +441,7 @@ impl DesktopApp {
         app.integration_hosted = true;
         if blank { app.initialize_actual_no_file_startup(); }
         app.read_preferences_at(&preferences_dir());
+        app.remember_plugin_model_preferences();
         app
     }
 
@@ -478,6 +486,10 @@ impl DesktopApp {
             error: None,
             notice: None,
             model_paths: Default::default(),
+            saved_plugin_model_paths: Default::default(),
+            saved_plugin_vocoder: Default::default(),
+            use_legacy_vocoder: false,
+            legacy_vocoder: String::new(),
             ffmpeg_path: String::new(),
             ffmpeg_detected,
             #[cfg(windows)]
@@ -485,6 +497,8 @@ impl DesktopApp {
             model_info: String::new(),
             model_inspection: Default::default(),
             userdata_load: Default::default(),
+            #[cfg(windows)]
+            legacy_vocoder_load: Default::default(),
             show_tooltips: true,
             locale: localization::Locale::default(),
             mapping: 0,
@@ -548,6 +562,7 @@ impl DesktopApp {
         source_math::initialize_current_process();
         let mut app = Self::new_with_context(ctx, None);
         app.plugin_hosted = true;
+        app.remember_plugin_model_preferences();
         app.live.bus = bus;
         app
     }
@@ -612,17 +627,8 @@ impl DesktopApp {
         [&self.model_paths[0], &self.model_paths[1]]
     }
 
-    pub(crate) fn set_plugin_model_paths(&mut self, analysis: String, synthesis: String) {
-        if self.model_paths[0] != analysis {
-            self.model_paths[0] = analysis;
-            self.model_info.clear();
-            self.model_inspection.invalidate(&self.model_paths[0]);
-            self.audio_model_changed();
-        }
-        if self.model_paths[1] != synthesis {
-            self.model_paths[1] = synthesis;
-            self.userdata_load.invalidate(&self.model_paths[1]);
-        }
+    fn legacy_vocoder_active(&self) -> bool {
+        cfg!(windows) && self.use_legacy_vocoder
     }
 
     pub(crate) fn restore_plugin_document(&mut self, text: &str, expected: &ExpectedCondition) -> Result<()> {
@@ -1308,6 +1314,8 @@ impl DesktopApp {
                 for (i, key) in ["model", "userdata", "license"].iter().enumerate() {
                     self.model_paths[i] = value[key].as_str().unwrap_or_default().into();
                 }
+                self.use_legacy_vocoder = value["useLegacyVocoder"].as_bool().unwrap_or(false);
+                self.legacy_vocoder = value["legacyVocoder"].as_str().unwrap_or_default().into();
                 self.show_tooltips = value["showTooltips"].as_bool().unwrap_or(true);
                 self.locale = localization::Locale::from_id(value["interfaceLanguage"].as_str().unwrap_or("en-us"));
                 if let Some(paths) = value.get("presetPaths")
@@ -1357,20 +1365,53 @@ impl DesktopApp {
     fn save_preferences_at(&mut self, dir: &Path) {
         #[allow(unused_mut)]
         let mut data = json!({"model":self.model_paths[0],"userdata":self.model_paths[1],"license":self.model_paths[2],"ffmpeg":self.ffmpeg_path,"showTooltips":self.show_tooltips});
+        let existing = if self.plugin_hosted || !cfg!(windows) {
+            match fs::read_to_string(dir.join("settings.json")) {
+                Ok(text) => match serde_json::from_str::<Value>(&text) {
+                    Ok(value) if value.is_object() => Some(value),
+                    _ => { self.preferences_error(std::io::Error::new(std::io::ErrorKind::InvalidData,
+                        "Existing settings are invalid")); return; }
+                },
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => { self.preferences_error(error); return; }
+            }
+        } else { None };
+        let previous = |key: &str| existing.as_ref().and_then(|value| value.get(key));
+        if self.plugin_hosted {
+            for (i, key) in ["model", "userdata"].into_iter().enumerate() {
+                if self.saved_plugin_model_paths[i] == self.model_paths[i] {
+                    data[key] = previous(key).cloned().unwrap_or_else(|| json!(""));
+                }
+            }
+        }
+        for (key, value, changed) in [
+            ("useLegacyVocoder", json!(self.use_legacy_vocoder), self.saved_plugin_vocoder.0 != self.use_legacy_vocoder),
+            ("legacyVocoder", json!(self.legacy_vocoder), self.saved_plugin_vocoder.1 != self.legacy_vocoder),
+        ] {
+            if cfg!(windows) && (!self.plugin_hosted || changed) {
+                data[key] = value;
+            } else if let Some(value) = previous(key) {
+                data[key] = value.clone();
+            }
+        }
         data["presetPaths"] = json!(self.preset_paths);
         data["interfaceLanguage"] = json!(self.locale.id());
         #[cfg(windows)]
         {
             data["audioDevices"] = self.audio_devices.selection.to_preferences();
         }
-        if let Err(e) = fs::create_dir_all(&dir).and_then(|_| {
-            fs::write(
-                dir.join("settings.json"),
-                serde_json::to_string_pretty(&data).unwrap_or_default(),
-            )
-        }) {
-            self.preferences_error(e);
+        match serde_json::to_vec_pretty(&data).map_err(std::io::Error::other)
+            .and_then(|bytes| write_preference_at(dir, "settings.json", &bytes))
+        {
+            Ok(()) if self.plugin_hosted => self.remember_plugin_model_preferences(),
+            Ok(()) => {}
+            Err(error) => self.preferences_error(error),
         }
+    }
+
+    fn remember_plugin_model_preferences(&mut self) {
+        self.saved_plugin_model_paths = self.plugin_model_paths().map(str::to_owned);
+        self.saved_plugin_vocoder = (self.use_legacy_vocoder, self.legacy_vocoder.clone());
     }
 
     fn native_paint(&mut self, rect: Rect) -> Option<std::sync::Arc<paint::Frame>> {
@@ -2342,6 +2383,12 @@ impl DesktopApp {
             self.model_info = info;
         }
         self.userdata_load.poll(&ctx, &self.model_paths[1]);
+        #[cfg(windows)]
+        {
+            let validate_legacy = (self.settings && self.settings_resources)
+                || (!self.plugin_hosted && self.legacy_vocoder_active());
+            self.legacy_vocoder_load.poll(&ctx, &self.legacy_vocoder, validate_legacy);
+        }
         let full = ui.max_rect();
         self.advance_layout(&ctx);
         if !self.integration_hosted { self.publish_live_condition(); }
@@ -2662,16 +2709,20 @@ pub(crate) fn try_read_multithread_preference() -> std::io::Result<bool> {
 }
 
 fn write_multithread_preference_at(dir: &Path, enabled: bool) -> std::io::Result<()> {
+    let bytes = serde_json::to_vec(&enabled).map_err(std::io::Error::other)?;
+    write_preference_at(dir, MULTITHREAD_PREFERENCE_FILE, &bytes)
+}
+
+fn write_preference_at(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::{Error, ErrorKind, Write};
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    let path = dir.join(MULTITHREAD_PREFERENCE_FILE);
-    let bytes = serde_json::to_vec(&enabled).map_err(Error::other)?;
+    let path = dir.join(name);
     fs::create_dir_all(dir)?;
     let mut created = None;
     for _ in 0..32 {
         let ordinal = NEXT.fetch_add(1, Ordering::Relaxed);
-        let temporary = dir.join(format!(".threading-{}-{ordinal}.tmp", std::process::id()));
+        let temporary = dir.join(format!(".{name}-{}-{ordinal}.tmp", std::process::id()));
         match fs::OpenOptions::new().write(true).create_new(true).open(&temporary) {
             Ok(file) => { created = Some((temporary,file)); break; },
             Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
@@ -2679,19 +2730,14 @@ fn write_multithread_preference_at(dir: &Path, enabled: bool) -> std::io::Result
         }
     }
     let (temporary, mut file) = created.ok_or_else(|| Error::new(ErrorKind::AlreadyExists, "Cannot reserve a preference temporary"))?;
-    let written = file.write_all(&bytes).and_then(|_| file.sync_all());
+    let written = file.write_all(bytes).and_then(|_| file.sync_all());
     drop(file);
     let result = written.and_then(|_| fs::rename(&temporary, &path));
     if result.is_err() { let _ = fs::remove_file(&temporary); }
     result
 }
 fn preferences_dir() -> PathBuf {
-    std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from))
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("Rocoflex")
+    crate::model_preferences::directory()
 }
 fn safe_filename(name: &str) -> String {
     let cleaned: String = name

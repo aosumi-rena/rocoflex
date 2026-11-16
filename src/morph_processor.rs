@@ -36,6 +36,8 @@ use input_gain::InputGain;
 pub(crate) mod offline;
 #[path="morph_input_meter.rs"]
 pub(crate) mod input_meter;
+#[path = "legacy_vocoder.rs"]
+mod legacy_vocoder;
 
 pub(crate) fn inspect_analysis_model(bytes: &[u8]) -> Result<()> {
     let tree = crate::model::ModelTree::parse(bytes)?;
@@ -65,6 +67,10 @@ pub(crate) fn inspect_morphing_model(bytes: &[u8]) -> Result<()> {
         crate::prototype_synthesis_networks::SynthesisNetworks::from_userdata(bytes)?,
         noise, 1, gain, offset)?);
     Ok(())
+}
+
+pub(crate) fn inspect_legacy_vocoder(bytes: &[u8]) -> Result<()> {
+    legacy_vocoder::LegacyVocoder::new(bytes, 1).map(drop)
 }
 
 type MonoRender=Box<dyn FnMut(&[f32],&mut Vec<f32>)->Result<()>>;
@@ -112,15 +118,23 @@ pub(crate) fn build_processor_with_instance_policy(analysis_model:&Path,synthesi
     build_processor_inner(analysis_model,synthesis_model,reader,sample_rate,input_channel,meter,profile,Some(multithread))
 }
 
+pub(crate) fn build_processor_with_legacy_vocoder(analysis_model:&Path,vocoder:&Path,
+    mut reader:ConditionReader,sample_rate:u32,input_channel:usize,meter:input_meter::Writer,
+    multithread:bool)->Result<MorphProcessor>
+{
+    validate_transport(sample_rate,input_channel)?;
+    let (analysis,synthesis)=read_legacy_models(analysis_model,vocoder)?;
+    if reader.poll().is_none() {
+        return Err("Choose an enabled voice on the canvas before starting audio.".into());
+    }
+    let graph=live::LiveGraph::with_legacy_vocoder(&analysis,&synthesis,reader,multithread)?;
+    Ok(MorphProcessor::from_graph(graph,input_channel,meter))
+}
+
 fn build_processor_inner(analysis_model:&Path,synthesis_model:&Path,
     mut reader:ConditionReader,sample_rate:u32,input_channel:usize,meter:input_meter::Writer,
     profile:crate::prepare_quality::PrepareProfile,multithread:Option<bool>)->Result<MorphProcessor> {
-    if sample_rate != 48_000 {
-        return Err("The synthesis graph currently requires 48000 Hz input and output.".into());
-    }
-    if input_channel>1 {
-        return Err("Choose the left or right channel of the stereo input transport.".into());
-    }
+    validate_transport(sample_rate,input_channel)?;
     let (analysis_bytes,synthesis_bytes)=read_models(analysis_model,synthesis_model)?;
     if reader.poll().is_none() {
         return Err("Choose an enabled voice on the canvas before starting audio.".into());
@@ -132,16 +146,38 @@ fn build_processor_inner(analysis_model:&Path,synthesis_model:&Path,
     Ok(MorphProcessor::from_graph(graph,input_channel,meter))
 }
 
-fn read_models(analysis_model:&Path,synthesis_model:&Path)->Result<(Vec<u8>,Vec<u8>)> {
+fn validate_transport(sample_rate:u32,input_channel:usize)->Result<()> {
+    if sample_rate!=48_000 {return Err("The synthesis graph currently requires 48000 Hz input and output.".into());}
+    if input_channel>1 {return Err("Choose the left or right channel of the stereo input transport.".into());}
+    Ok(())
+}
+
+fn read_analysis_model(analysis_model:&Path)->Result<Vec<u8>> {
     let analysis_bytes = crate::model::read_bytes(analysis_model, 512 * 1024 * 1024)?;
     let analysis = crate::model::ModelTree::parse(&analysis_bytes)
         .map_err(|error| format!("Analysis model: {error}"))?;
     if analysis.root.children.len() != 9 {
         return Err("The supplied analysis model does not contain the expected nine analysis branches.".into());
     }
-    drop(analysis);
+    Ok(analysis_bytes)
+}
+
+fn read_models(analysis_model:&Path,synthesis_model:&Path)->Result<(Vec<u8>,Vec<u8>)> {
+    let analysis_bytes=read_analysis_model(analysis_model)?;
     let synthesis_bytes = crate::model::read_bytes(synthesis_model, 256 * 1024 * 1024)?;
     Ok((analysis_bytes,synthesis_bytes))
+}
+
+pub(crate) const LEGACY_VOCODER_MAX_BYTES:u64=64*1024*1024;
+
+fn read_legacy_models(analysis_model:&Path,vocoder:&Path)->Result<(Vec<u8>,Vec<u8>)> {
+    let blocked=crate::offline::io::protected_model_path;
+    if blocked(vocoder) {return Err("Session and authentication files are not model inputs.".into());}
+    let vocoder=vocoder.canonicalize().map_err(|e|format!("Cannot open legacy vocoder: {e}"))?;
+    if blocked(&vocoder) {return Err("Session and authentication files are not model inputs.".into());}
+    let analysis=read_analysis_model(analysis_model)?;
+    let vocoder=crate::model::read_bytes(&vocoder,LEGACY_VOCODER_MAX_BYTES)?;
+    Ok((analysis,vocoder))
 }
 
 pub const PLUGIN_LATENCY_SAMPLES:u32=25*240;
@@ -171,16 +207,17 @@ impl PreparedLatency {
     fn from_count_plan(query:count_plan::Query<count_plan::PreparedCountPlan>)->Result<Self> {
         match query {
             Ok(plan) if matches!(plan.policy_version(),count_plan::COUNT_POLICY_VERSION
-                | count_plan::ALTERNATE_COUNT_POLICY_VERSION)=>{
-                let delay=u32::try_from(plan.whole_hop_deficit_bound())
-                    .map_err(|_|"Prepared publication delay does not fit the plugin ABI")?;
-                if delay==0 {return Err("Prepared publication delay must be positive".into());}
-                Ok(Self {delay_samples:delay,policy:2})
-            }
+                | count_plan::ALTERNATE_COUNT_POLICY_VERSION)=>Self::from_plan(plan),
             Ok(_) | Err(count_plan::Unavailable::Unsupported(_))=>
                 Ok(Self {delay_samples:PLUGIN_LATENCY_SAMPLES,policy:1}),
             Err(count_plan::Unavailable::Invalid(_))=>Err("Prepared publication count metadata is invalid".into()),
         }
+    }
+    fn from_plan(plan:count_plan::PreparedCountPlan)->Result<Self> {
+        let delay=u32::try_from(plan.whole_hop_deficit_bound())
+            .map_err(|_|"Prepared publication delay does not fit the plugin ABI")?;
+        if delay==0 {return Err("Prepared publication delay must be positive".into());}
+        Ok(Self {delay_samples:delay,policy:2})
     }
 }
 fn latency_buffers(latency:PreparedLatency,max_block:usize)->Result<(VecDeque<f32>,Vec<f32>)> {
@@ -232,13 +269,34 @@ impl PluginProcessor {
         latency_policy:LatencyPreparation,multithread:bool)->Result<Self> {
         Self::prepare_inner(analysis_model,synthesis_model,bus,sample_rate,max_block_frames,profile,latency_policy,Some(multithread))
     }
-    fn prepare_inner(analysis_model:&Path,synthesis_model:&Path,bus:&ConditionBus,
-        sample_rate:u32,max_block_frames:usize,profile:crate::prepare_quality::PrepareProfile,
-        latency_policy:LatencyPreparation,multithread:Option<bool>)->Result<Self> {
+    pub(crate) fn with_legacy_vocoder(analysis_model:&Path,vocoder:&Path,bus:&ConditionBus,
+        sample_rate:u32,max_block_frames:usize,latency_policy:LatencyPreparation,multithread:bool)->Result<Self> {
+        Self::validate_setup(sample_rate,max_block_frames)?;
+        let (analysis,vocoder)=read_legacy_models(analysis_model,vocoder)?;
+        let graph=live::LiveGraph::with_legacy_vocoder(&analysis,&vocoder,bus.reader(),multithread)?;
+        let plan=graph.prepared_count_plan().ok().filter(|plan|
+            plan.policy_version()==count_plan::LEGACY_COUNT_POLICY_VERSION)
+            .ok_or("Cannot determine the legacy vocoder delay.")?;
+        let mut latency=PreparedLatency::from_plan(plan)?;
+        if latency_policy==LatencyPreparation::Fixed6000 {
+            if latency.delay_samples!=PLUGIN_LATENCY_SAMPLES {
+                return Err("The host is not ready to accept the legacy vocoder latency.".into());
+            }
+            latency.policy=1;
+        }
+        Self::from_graph(graph,bus,max_block_frames,latency)
+    }
+    fn validate_setup(sample_rate:u32,max_block_frames:usize)->Result<()> {
         if sample_rate!=48_000 {return Err("The plugin requires 48000 Hz audio.".into());}
         if !(1..=65_536).contains(&max_block_frames) {
             return Err("Plugin maximum block size must be in 1..=65536.".into());
         }
+        Ok(())
+    }
+    fn prepare_inner(analysis_model:&Path,synthesis_model:&Path,bus:&ConditionBus,
+        sample_rate:u32,max_block_frames:usize,profile:crate::prepare_quality::PrepareProfile,
+        latency_policy:LatencyPreparation,multithread:Option<bool>)->Result<Self> {
+        Self::validate_setup(sample_rate,max_block_frames)?;
         let (analysis,userdata)=read_models(analysis_model,synthesis_model)?;
         let graph=match multithread {
             Some(value)=>live::LiveGraph::with_instance_policy(&analysis,&userdata,bus.reader(),profile,value)?,
@@ -246,6 +304,10 @@ impl PluginProcessor {
         };
 
         let prepared_latency=latency_policy.select(||graph.prepared_count_plan())?;
+        Self::from_graph(graph,bus,max_block_frames,prepared_latency)
+    }
+    fn from_graph(graph:live::LiveGraph,bus:&ConditionBus,max_block_frames:usize,
+        prepared_latency:PreparedLatency)->Result<Self> {
         let (queued,rendered)=latency_buffers(prepared_latency,max_block_frames)?;
         Ok(Self {graph,availability:bus.reader(),queued,rendered,max_block_frames,prepared_latency,
             begun:false,failure:None})

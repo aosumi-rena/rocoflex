@@ -20,12 +20,21 @@ pub(crate) struct HarmonicExcitation {
     scratch: [f32; WIDTH],
     first: bool,
     ended: bool,
+    limit_amplitude: bool,
     failure: Option<String>,
 }
 
 impl HarmonicExcitation {
 
     pub(crate) fn new(frequencies: [f32; HARMONICS]) -> Result<Self> {
+        Self::with_amplitude_limit(frequencies, true)
+    }
+
+    pub(crate) fn legacy(frequencies: [f32; HARMONICS]) -> Result<Self> {
+        Self::with_amplitude_limit(frequencies, false)
+    }
+
+    fn with_amplitude_limit(frequencies: [f32; HARMONICS], limit_amplitude: bool) -> Result<Self> {
         if frequencies.iter().any(|x| !x.is_finite()) {
             return Err("Nonfinite learned harmonic frequency".into());
         }
@@ -35,7 +44,7 @@ impl HarmonicExcitation {
             (1.0 - angle.cos()) * 0.5
         });
         Ok(Self { frequencies, window, overlap: [0.; WIDTH], scratch: [0.; WIDTH],
-            first: true, ended: false, failure: None })
+            first: true, ended: false, limit_amplitude, failure: None })
     }
 
     pub(crate) fn process(&mut self, record: HarmonicRecord<'_>, output: &mut Vec<f32>) -> Result<()> {
@@ -60,7 +69,7 @@ impl HarmonicExcitation {
         for harmonic in 0..HARMONICS {
             let frequency = self.frequencies[harmonic];
             let value = record.projection10[harmonic];
-            let limited = if value > 0. { 0. } else { value };
+            let limited = if self.limit_amplitude && value > 0. { 0. } else { value };
             let amplitude = limited.exp();
             let phase0 = record.scalar4 * frequency;
             let phase1 = phase0 * TWO_PI;

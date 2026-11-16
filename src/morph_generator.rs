@@ -18,10 +18,19 @@ pub(crate) struct SourceGenerator {
     transformed:[f32;WIDTH],
     phase_state:f64,
     first:bool,
+    shape_ceiling:f32,
     failure:Option<String>,
 }
 impl SourceGenerator {
     pub(crate) fn new(log_window_gain:f32)->Result<Self> {
+        Self::with_shape_ceiling(log_window_gain,2.9)
+    }
+
+    pub(crate) fn legacy(log_window_gain:f32)->Result<Self> {
+        Self::with_shape_ceiling(log_window_gain,3.0)
+    }
+
+    fn with_shape_ceiling(log_window_gain:f32,shape_ceiling:f32)->Result<Self> {
         let gain=log_window_gain.exp();
         if !gain.is_finite() {return Err("Nonfinite source-generator window gain".into());}
         let window=std::array::from_fn(|k| {
@@ -31,7 +40,7 @@ impl SourceGenerator {
         Ok(Self {table:GeneratorTable::new(),chirp:ChirpTransform::new(WIDTH)?,window,
             overlap:[0.0;WIDTH],magnitude:[0.0;WIDTH+1],phase:[0.0;WIDTH+1],
             real:[0.0;WIDTH+1],imaginary:[0.0;WIDTH+1],transformed:[0.0;WIDTH],
-            phase_state:0.0,first:true,failure:None})
+            phase_state:0.0,first:true,shape_ceiling,failure:None})
     }
 
     pub(crate) fn process(&mut self,raw:&[f32],output:&mut Vec<f32>)->Result<()> {
@@ -61,7 +70,7 @@ impl SourceGenerator {
             }
             let harmonics=count.min(WIDTH as f32) as usize;
             if harmonics>0 {
-                let parameters=self.table.parameters(raw[2].clamp(0.1,2.9))?;
+                let parameters=self.table.parameters(raw[2].clamp(0.1,self.shape_ceiling))?;
                 let (normalization,_)=polar_response(parameters,200.0)?;
                 if normalization<=0.0 {return Err("Zero source-generator response normalization".into());}
                 self.magnitude.fill(0.0);self.phase.fill(0.0);
