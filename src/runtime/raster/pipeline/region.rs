@@ -93,7 +93,7 @@ impl Rectangles {
             for (incoming,&[x,y,width,height]) in self.entries.iter().enumerate() {
                 progress.step=PairStep::Incoming;progress.incoming=Some(incoming);progress.current=None;
                 for (current,&[clip_x,clip_y,clip_width,clip_height]) in current_clip.entries.iter().enumerate() {
-                    progress.step=PairStep::Current;progress.current=Some(current);progress.candidate=None;progress.visited_pairs+=1;
+                    progress.current=Some(current);progress.candidate=None;progress.visited_pairs+=1;
                     progress.step=PairStep::Horizontal;
                     let left=x.max(clip_x);
                     let intersection_width=x.wrapping_add(width).min(clip_x.wrapping_add(clip_width)).wrapping_sub(left);

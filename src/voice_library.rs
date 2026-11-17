@@ -125,7 +125,14 @@ fn decode(bytes: &[u8]) -> Result<(FactoryLibrary, usize)> {
 
 impl FactoryLibrary {
     pub fn bundled() -> Result<Self> {
-        Self::from_blob(include_bytes!("../assets/factory-voices.bin"))
+        #[cfg(has_factory_voices)]
+        {
+            Self::from_blob(include_bytes!("../assets/factory-voices.bin"))
+        }
+        #[cfg(not(has_factory_voices))]
+        {
+            Ok(Self { voices: Vec::new() })
+        }
     }
 
     pub fn from_blob(bytes: &[u8]) -> Result<Self> {

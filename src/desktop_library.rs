@@ -323,9 +323,6 @@ fn load_factory() -> Result<Vec<VoiceEntry>> {
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    if voices.is_empty() {
-        return Err("The included factory catalog is empty.".into());
-    }
     Ok(voices)
 }
 

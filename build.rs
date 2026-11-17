@@ -33,6 +33,18 @@ fn resource_compiler() -> PathBuf {
 }
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(has_factory_voices)");
+    println!("cargo:rerun-if-changed=assets/factory-voices.bin");
+    let catalog = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
+        .join("assets/factory-voices.bin");
+    match fs::metadata(&catalog) {
+        Ok(metadata) => {
+            assert!(metadata.is_file(), "Factory voice catalog must be a file");
+            println!("cargo:rustc-cfg=has_factory_voices");
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => panic!("Read factory voice catalog metadata: {error}"),
+    }
     println!("cargo:rerun-if-changed=assets/app-icon.ico");
     println!("cargo:rerun-if-changed=resources/app.rc");
     println!("cargo:rerun-if-env-changed=RC");
