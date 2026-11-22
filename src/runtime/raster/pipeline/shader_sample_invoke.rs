@@ -1,7 +1,7 @@
 use super::{Entry,Progress,Services,Target};
 #[must_use]
 pub struct Completed<I,R,O> {pub progress:Progress<I>,pub normal:super::super::NormalReturn<I,R,O>}
-#[must_use = "keep SAME caller Frame and ALL exact stage failures/resources"]
+#[must_use]
 pub enum Failure<I,R,O,E> {
     Entry {expected:Target<I>,observed:Option<Entry<I>>,error:Option<E>,mismatched:bool},
     Prefix(super::Failure<I,E>),

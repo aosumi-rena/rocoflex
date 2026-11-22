@@ -16,8 +16,8 @@ pub enum SourceRawDivsdError {
 impl SourceRawDivsdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "DIVSD requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::CandidateRequired { .. } => "DIVSD candidate/exception continuation is not closed",
+            Self::ControlRequired { .. } => "Unsupported double division mode",
+            Self::CandidateRequired { .. } => "Double division incomplete",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

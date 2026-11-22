@@ -5,7 +5,7 @@ pub enum SourceCrtQueryHelperReturnBindings<P, S> {
     Resolver(fn(&P, &S) -> u64),
     SlotReplacement(fn(&P, &S) -> (u64, u64)),
 }
-#[must_use = "retain original parent and complete nested child/native/frame/FP/resource history"]
+#[must_use]
 pub struct SourceCrtQueryHelperHistory<P, S, H, CH, E, N> {
     pub parent: SourceCrtQueryHelperParent<P, S, H, E>,
     pub child_cursor: SourceCrtQueryCursor, pub child_history: CH,
@@ -15,7 +15,7 @@ pub struct SourceCrtQueryHelperHistory<P, S, H, CH, E, N> {
     pub actual_return: N, pub source_call: SourceCrtQueryCallEnvelope,
     pub parent_receipt: SourceCrtQueryCallerReceipt,
 }
-#[must_use = "retain stopped original parent plus all rejected actual child resources"]
+#[must_use]
 pub enum SourceCrtQueryHelperResumeFailure<P, S, H, CH, E, N> {
     ParentAuthority {
         actual: SourceCrtQueryReturned<P, S, CH, SourceCrtQueryHelperParent<P, S, H, E>, N>,

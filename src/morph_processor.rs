@@ -38,6 +38,8 @@ pub(crate) mod offline;
 pub(crate) mod input_meter;
 #[path = "legacy_vocoder.rs"]
 mod legacy_vocoder;
+#[path = "custom_vocoder.rs"]
+mod custom_vocoder;
 
 pub(crate) fn inspect_analysis_model(bytes: &[u8]) -> Result<()> {
     let tree = crate::model::ModelTree::parse(bytes)?;
@@ -69,15 +71,19 @@ pub(crate) fn inspect_morphing_model(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn inspect_legacy_vocoder(bytes: &[u8]) -> Result<()> {
-    legacy_vocoder::LegacyVocoder::new(bytes, 1).map(drop)
+pub(crate) fn inspect_legacy_vocoder(bytes: &[u8]) -> Result<(u32,usize)> {
+    custom_vocoder::CustomVocoder::inspect(bytes)
 }
 
 type MonoRender=Box<dyn FnMut(&[f32],&mut Vec<f32>)->Result<()>>;
 
-pub struct MorphProcessor {inner:crate::live_audio::MonoProcessor<MonoRender>}
+pub struct MorphProcessor {inner:crate::live_audio::MonoProcessor<MonoRender>,r2_vocoder:bool}
+fn clamp_playback(samples:&mut[f32]) {
+    for sample in samples {*sample=sample.clamp(-1.0,1.0);}
+}
 impl MorphProcessor {
-    fn from_graph(mut graph:live::LiveGraph,input_channel:usize,mut meter:input_meter::Writer)->Self {
+    fn from_graph(mut graph:live::LiveGraph,input_channel:usize,sample_rate:u32,mut meter:input_meter::Writer)->Result<Self> {
+        let r2_vocoder=graph.r2_vocoder();
         let mut gain=InputGain::new();
         let render:MonoRender=Box::new(move |input,output| {
             let pending=meter.begin_block(input,&gain);
@@ -85,7 +91,7 @@ impl MorphProcessor {
             if result.is_ok() {meter.finish_block_with_pitch(pending,graph.pitch_sample());}
             result
         });
-        Self {inner:crate::live_audio::MonoProcessor::new(input_channel,render)}
+        Ok(Self {inner:crate::live_audio::MonoProcessor::new(input_channel,sample_rate,render)?,r2_vocoder})
     }
 }
 
@@ -94,7 +100,10 @@ impl crate::wasapi_duplex::Processor for MorphProcessor {
     fn process(&mut self, input: &crate::wasapi_capture::Packet,
         format: crate::wasapi_duplex::Format, output: &mut Vec<f32>) -> Result<()>
     {
-        crate::wasapi_duplex::Processor::process(&mut self.inner,input,format,output)
+        let begin=output.len();
+        crate::wasapi_duplex::Processor::process(&mut self.inner,input,format,output)?;
+        if self.r2_vocoder {clamp_playback(&mut output[begin..]);}
+        Ok(())
     }
 }
 
@@ -120,15 +129,15 @@ pub(crate) fn build_processor_with_instance_policy(analysis_model:&Path,synthesi
 
 pub(crate) fn build_processor_with_legacy_vocoder(analysis_model:&Path,vocoder:&Path,
     mut reader:ConditionReader,sample_rate:u32,input_channel:usize,meter:input_meter::Writer,
-    multithread:bool)->Result<MorphProcessor>
+    profile:crate::prepare_quality::PrepareProfile,multithread:bool)->Result<MorphProcessor>
 {
     validate_transport(sample_rate,input_channel)?;
     let (analysis,synthesis)=read_legacy_models(analysis_model,vocoder)?;
     if reader.poll().is_none() {
         return Err("Choose an enabled voice on the canvas before starting audio.".into());
     }
-    let graph=live::LiveGraph::with_legacy_vocoder(&analysis,&synthesis,reader,multithread)?;
-    Ok(MorphProcessor::from_graph(graph,input_channel,meter))
+    let graph=live::LiveGraph::with_legacy_vocoder(&analysis,&synthesis,reader,profile,multithread)?;
+    MorphProcessor::from_graph(graph,input_channel,sample_rate,meter)
 }
 
 fn build_processor_inner(analysis_model:&Path,synthesis_model:&Path,
@@ -143,11 +152,13 @@ fn build_processor_inner(analysis_model:&Path,synthesis_model:&Path,
         Some(value)=>live::LiveGraph::with_instance_policy(&analysis_bytes,&synthesis_bytes,reader,profile,value)?,
         None=>live::LiveGraph::with_profile(&analysis_bytes,&synthesis_bytes,reader,profile)?,
     };
-    Ok(MorphProcessor::from_graph(graph,input_channel,meter))
+    MorphProcessor::from_graph(graph,input_channel,sample_rate,meter)
 }
 
 fn validate_transport(sample_rate:u32,input_channel:usize)->Result<()> {
-    if sample_rate!=48_000 {return Err("The synthesis graph currently requires 48000 Hz input and output.".into());}
+    if !crate::live_audio::CLIENT_SAMPLE_RATES.contains(&sample_rate) {
+        return Err("Unsupported live sample rate".into());
+    }
     if input_channel>1 {return Err("Choose the left or right channel of the stereo input transport.".into());}
     Ok(())
 }
@@ -168,12 +179,12 @@ fn read_models(analysis_model:&Path,synthesis_model:&Path)->Result<(Vec<u8>,Vec<
     Ok((analysis_bytes,synthesis_bytes))
 }
 
-pub(crate) const LEGACY_VOCODER_MAX_BYTES:u64=64*1024*1024;
+pub(crate) const LEGACY_VOCODER_MAX_BYTES:u64=256*1024*1024;
 
 fn read_legacy_models(analysis_model:&Path,vocoder:&Path)->Result<(Vec<u8>,Vec<u8>)> {
     let blocked=crate::offline::io::protected_model_path;
     if blocked(vocoder) {return Err("Session and authentication files are not model inputs.".into());}
-    let vocoder=vocoder.canonicalize().map_err(|e|format!("Cannot open legacy vocoder: {e}"))?;
+    let vocoder=vocoder.canonicalize().map_err(|e|format!("Cannot open custom vocoder: {e}"))?;
     if blocked(&vocoder) {return Err("Session and authentication files are not model inputs.".into());}
     let analysis=read_analysis_model(analysis_model)?;
     let vocoder=crate::model::read_bytes(&vocoder,LEGACY_VOCODER_MAX_BYTES)?;
@@ -270,17 +281,17 @@ impl PluginProcessor {
         Self::prepare_inner(analysis_model,synthesis_model,bus,sample_rate,max_block_frames,profile,latency_policy,Some(multithread))
     }
     pub(crate) fn with_legacy_vocoder(analysis_model:&Path,vocoder:&Path,bus:&ConditionBus,
-        sample_rate:u32,max_block_frames:usize,latency_policy:LatencyPreparation,multithread:bool)->Result<Self> {
+        sample_rate:u32,max_block_frames:usize,profile:crate::prepare_quality::PrepareProfile,latency_policy:LatencyPreparation,multithread:bool)->Result<Self> {
         Self::validate_setup(sample_rate,max_block_frames)?;
         let (analysis,vocoder)=read_legacy_models(analysis_model,vocoder)?;
-        let graph=live::LiveGraph::with_legacy_vocoder(&analysis,&vocoder,bus.reader(),multithread)?;
+        let graph=live::LiveGraph::with_legacy_vocoder(&analysis,&vocoder,bus.reader(),profile,multithread)?;
         let plan=graph.prepared_count_plan().ok().filter(|plan|
             plan.policy_version()==count_plan::LEGACY_COUNT_POLICY_VERSION)
-            .ok_or("Cannot determine the legacy vocoder delay.")?;
+            .ok_or("Cannot determine the custom vocoder delay.")?;
         let mut latency=PreparedLatency::from_plan(plan)?;
         if latency_policy==LatencyPreparation::Fixed6000 {
             if latency.delay_samples!=PLUGIN_LATENCY_SAMPLES {
-                return Err("The host is not ready to accept the legacy vocoder latency.".into());
+                return Err("The host is not ready to accept the custom vocoder latency.".into());
             }
             latency.policy=1;
         }
@@ -346,6 +357,7 @@ impl PluginProcessor {
         if self.rendered.iter().any(|sample|!sample.is_finite()) {
             return Err("Plugin graph produced nonfinite audio.".into());
         }
+        if self.graph.r2_vocoder() {clamp_playback(&mut self.rendered);}
         self.queued.extend(self.rendered.drain(..));
         if self.queued.len()<output.len() {
             return Err("Plugin graph exhausted its declared latency buffer; prepare a new instance.".into());

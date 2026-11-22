@@ -220,12 +220,12 @@ impl DesktopApp {
                 return Some("Choose the analysis model in Resources & Workspace.");
             }
             if self.legacy_vocoder.trim().is_empty() {
-                return Some("Choose a legacy vocoder in Resources & Workspace.");
+                return Some("Choose a custom vocoder in Resources & Workspace.");
             }
             match self.legacy_vocoder_load.status(&self.legacy_vocoder) {
-                Some(Ok(())) => {}
-                Some(Err(_)) => return Some("Invalid legacy vocoder. Check Resources & Workspace."),
-                None => return Some("Inspecting legacy vocoder..."),
+                Some(Ok(_)) => {}
+                Some(Err(_)) => return Some("Invalid custom vocoder. Check Resources & Workspace."),
+                None => return Some("Inspecting custom vocoder..."),
             }
         } else {
             match (self.model_paths[0].trim().is_empty(), self.model_paths[1].trim().is_empty()) {
@@ -312,9 +312,8 @@ impl DesktopApp {
                 None
             } else {
                 Some(LiveModels { analysis_model, synthesis_model, legacy_vocoder,
-                    profile: if legacy_vocoder { Ok(crate::prepare_quality::PrepareProfile::Highest) }
-                        else { crate::prepare_quality::Preferences::from_document(&self.preset.document)
-                            .and_then(|p| p.profile()) }, multithread: self.live.multithread })
+                    profile: crate::prepare_quality::Preferences::from_document(&self.preset.document)
+                        .and_then(|p| p.profile()), multithread: self.live.multithread })
             };
         }
 
@@ -413,7 +412,7 @@ impl DesktopApp {
                     if models.legacy_vocoder {
                         crate::morph_processor::build_processor_with_legacy_vocoder(
                             &models.analysis_model, &models.synthesis_model, reader, sample_rate,
-                            input_channel, writer, models.multithread)
+                            input_channel, writer, profile.expect("target profile checked"), models.multithread)
                     } else {
                         crate::morph_processor::build_processor_with_instance_policy(
                             &models.analysis_model, &models.synthesis_model, reader, sample_rate,

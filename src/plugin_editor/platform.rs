@@ -71,8 +71,6 @@ impl Platform {
         let buttons = self.buttons.replace(0);
         self.input.cancel_pointer_buttons(cause, buttons, self.pointer(), self.modifiers.get());
     }
-    /// End view-owned held keys when ownership changes while the HWND stays
-    /// focused. Remember their physical release so the host sees balanced use.
     pub(super) fn retire_navigation_keys(&self) {
         let keys=self.navigation_keys.borrow_mut().retire();
         for key in keys {

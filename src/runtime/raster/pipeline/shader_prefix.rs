@@ -64,9 +64,9 @@ pub struct Progress {
     pub attempted_rva: u32, pub entry_validated: bool, pub completed_instructions: usize,
     pub last_branch: Option<Branch>, pub last_branch_taken: Option<bool>, pub next: Option<Next>,
 }
-#[must_use = "SAME raw frame/backings must reach a required exact body; this is NOT a render/RET"]
+#[must_use]
 pub struct Required<F> { pub frame: F, pub progress: Progress, pub next: Next }
-#[must_use = "keep advanced stack/regs/maps/resources and original provider error; do not retry"]
+#[must_use]
 pub struct Failure<F,E> { pub frame: F, pub progress: Progress, pub error: E }
 
 pub fn dispatch<S: Services>(host: &mut S, mut frame: S::Frame)

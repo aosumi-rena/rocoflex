@@ -1,6 +1,6 @@
 use super::crt_storage_native_return::SourceCrtNativeRetFrame;
 
-#[must_use = "retain complete CRT owned prefix and its exact source progress"]
+#[must_use]
 pub struct SourceCrtOwnedPrefix<C, P> {
     pub owner: C,
     progress: P,
@@ -15,13 +15,13 @@ pub struct SourceCrtOwnedMemoryObservation<R> {
     pub receipt: R,
     pub actual_frame: SourceCrtNativeRetFrame,
 }
-#[must_use = "retain earlier physical owners and actual completed memory-prefix resources"]
+#[must_use]
 pub struct SourceCrtOwnedMemoryStep<C, A, R, P> {
     pub previous: SourceCrtOwnedPrefix<C, P>,
     pub actual: A,
     pub completed: SourceCrtOwnedMemoryObservation<R>,
 }
-#[must_use = "retain original owned prefix and partial/rejected actual memory resources"]
+#[must_use]
 pub struct SourceCrtOwnedMemoryError<C, A, R, P, E> {
     pub previous: SourceCrtOwnedPrefix<C, P>,
     pub actual: A,
@@ -32,7 +32,7 @@ pub struct SourceCrtOwnedMemoryError<C, A, R, P, E> {
     pub continuation: Option<E>,
 }
 
-#[must_use = "retain completed original controller and all owned prefix resources"]
+#[must_use]
 pub struct SourceCrtOwnedControllerCompletion<S, C, P, V> {
     pub controller: S,
     pub prefix: SourceCrtOwnedPrefix<C, P>,
@@ -44,19 +44,19 @@ impl<S, C, P, V: Copy> SourceCrtOwnedControllerCompletion<S, C, P, V> {
         Self { controller, prefix, value }
     }
 }
-#[must_use = "retain original parent controller and owned prefix on rejected completion"]
+#[must_use]
 pub struct SourceCrtOwnedControllerCompletionError<S, C, P> {
     pub controller: S,
     pub prefix: SourceCrtOwnedPrefix<C, P>,
     pub pending: P,
 }
 
-#[must_use = "retain SAME new outstanding child and every earlier owned prefix"]
+#[must_use]
 pub struct SourceCrtOwnedPendingChild<C, P, S> {
     pub previous: SourceCrtOwnedPrefix<C, P>,
     pub source: S,
 }
-#[must_use = "retain owned prefix when next source child handoff rejects"]
+#[must_use]
 pub struct SourceCrtOwnedChildBeginError<C, P, E> {
     pub previous: SourceCrtOwnedPrefix<C, P>,
     pub pending: P,

@@ -399,7 +399,6 @@ public:
         ProcessAdmission::Scope scope(this);
         ProcessAdmission::Call call(admission_);
         if (!call) {
-            // When admission is closed, inspect only caller-owned buffers and scalar bounds.
             const auto limit=audioBlockLimit_.load(std::memory_order_acquire);
             if (data.symbolicSampleSize!=kSample32 || data.numSamples<0 || !limit
                 || static_cast<uint32>(data.numSamples)>limit) return kResultFalse;
@@ -495,7 +494,6 @@ private:
             drainRefusedLocked("Audio processing did not quiesce before activation.",live!=nullptr);
             return kResultFalse;
         }
-        // Read saved preferences on inactive activation after drain, never on the audio callback.
         uint32_t savedMultithread=0;
         const bool savedPreference=roco_plugin_try_read_multithread_preference(&savedMultithread)==kBridgeOk
             && savedMultithread<=1;
@@ -774,7 +772,6 @@ private:
             nextMeterMarker_=(nextMeterMarker_+1)%meterMarkers_.size();
             return reply;
         }
-        // Drain the audio callback before reading fatal text; bridgeLifecycle_ excludes mutation.
         if (admission_.admitted()) { reply.statusResult = Protocol::StatusResult::Busy; return reply; }
         std::unique_lock<std::mutex> lifecycle(bridgeLifecycle_, std::try_to_lock);
         if (!lifecycle.owns_lock()) { reply.statusResult = Protocol::StatusResult::Busy; return reply; }

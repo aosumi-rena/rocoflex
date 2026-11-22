@@ -19,9 +19,9 @@ pub enum SourceRawMaxssError {
 impl SourceRawMaxssError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "MAXSS requires explicit Intel/MXCSR/effective capabilities",
-            Self::CoreStatusRequired { .. } => "MAXSS candidate status is outside invalid-or-denormal policy",
-            Self::NaNForwardDazRequired { .. } => "MAXSS first-NaN/second-subnormal forwarding under DAZ requires separate authority",
+            Self::ControlRequired { .. } => "Unsupported single-precision maximum mode",
+            Self::CoreStatusRequired { .. } => "Unsupported maximum result status",
+            Self::NaNForwardDazRequired { .. } => "Unsupported maximum for NaN and a flushed subnormal",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

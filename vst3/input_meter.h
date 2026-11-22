@@ -51,7 +51,7 @@ private:
     std::atomic<uint64_t> state_;
 };
 
-// A serialized audio callback writes; control reads the atomic mailbox.
+// Single audio writer, concurrent meter readers.
 class InputMeter final {
 public:
     struct Sample {

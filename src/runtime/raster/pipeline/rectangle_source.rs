@@ -10,7 +10,7 @@ pub struct Progress {
 #[derive(Debug)]
 pub enum Cause<E> {Arithmetic(E),Comparison {request:comparison::Request,error:E},Path(Error)}
 #[derive(Debug)]
-#[must_use="preserve partial Path/progress and SAME advanced FP/comparison owner"]
+#[must_use]
 pub struct Failure<E> {pub partial:Path,pub progress:Progress,pub cause:Cause<E>}
 
 pub fn build_with_fp<P:Fp>(rectangle:[u32;4],fp:&mut P)->Result<Path,Failure<P::Error>> {

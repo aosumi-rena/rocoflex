@@ -11,17 +11,17 @@ pub struct SourceCrtQueryInitializationBodyBindings<D, P, S> {
     pub actual_frame: fn(&D, &P, &S) -> SourceCrtNativeRetFrame,
     pub actual_rbp: fn(&D, &P, &S) -> u64,
 }
-#[must_use = "retain SAME private body/provider/storage/two child caps/full frame/FP/resources"]
+#[must_use]
 pub struct SourceCrtQueryInitializationBodyCapsule<D, P, S> {
     pub body: D, pub prefix: P, pub services: S,
     pub bindings: SourceCrtQueryInitializationBodyBindings<D, P, S>,
 }
-#[must_use = "retain accepted body capsule through required actual epilogue and RET"]
+#[must_use]
 pub struct SourceCrtQueryInitializationBodyAccepted<D, P, S> {
     pub actual: SourceCrtQueryInitializationBodyCapsule<D, P, S>,
     pub source: SourceCrtQueryInitializationProgress,
 }
-#[must_use = "retain entire rejected body with stopped original initializer"]
+#[must_use]
 pub struct SourceCrtQueryInitializationBodyError<D, P, S> {
     pub actual: SourceCrtQueryInitializationBodyCapsule<D, P, S>,
     pub pending: SourceCrtQueryInitializationProgress,

@@ -217,7 +217,7 @@ pub struct CompositePending {
     pub envelope: Vec<projection::Record>, pub projected: Option<projection::Output>,
     pub vertices: Vec<[f32; 2]>,
 }
-#[must_use = "retain pending source-pass buffers and advanced math/mask; never retry"]
+#[must_use]
 pub struct CompositeFailure {
     pub cause: Error, pub phase: CompositePhase,
     pub origin: [f32; 2], pub saved_initial_zoom: f32, pub viewport_reread_zoom: f32,
@@ -302,7 +302,7 @@ pub fn render_mask16(rect: [i32; 4], probe: [f32; 2], radius: f32,
             Some(stopped) => stopped.cause, None => failure.cause,
         })
 }
-#[must_use = "retain partially rasterized mask and failing pass; do not publish or retry"]
+#[must_use]
 #[derive(Debug)]
 pub struct MaskFailure { pub cause: Error, pub partial: Option<Mask>, pub ordinal: usize,
     pub composite_failure: Option<CompositeFailure> }
@@ -345,7 +345,7 @@ enum PassProductionError<E> { Binding(E), Numeric(Error) }
 #[derive(Clone, Copy, Debug)]
 pub enum OwnerPassPhase { Unlock, Sort, RereadZoom }
 #[derive(Debug)]
-#[must_use = "completed/partially sorted records are the stopped pass, not a new input replay"]
+#[must_use]
 pub struct OwnerPass {
     pub origin: [f32; 2], pub records: Vec<[u32; 4]>, pub phase: OwnerPassPhase,
 }

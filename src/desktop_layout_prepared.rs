@@ -13,7 +13,7 @@ enum ProbeSuffix {
     Decrement,
 }
 
-#[must_use = "Keep the prepared candidate until publication or explicit user resolution."]
+#[must_use]
 pub struct PreparedFullController {
     candidate: Controller,
     phase: PreparedPhase,

@@ -25,9 +25,9 @@ pub enum SourceLargePhaseWordZeroError {
 impl SourceLargePhaseWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::OutsideLargeDomain { .. } => "CPU0 large F64 phase requires finite magnitude reaching actual411e848000000000 threshold",
+            Self::OutsideLargeDomain { .. } => "Phase magnitude below the large-angle threshold",
             Self::Binding(error) | Self::Kernel(error) => error.reason(),
-            Self::Integer(_) => "CPU0 large F64 integer head/tail continuation required, including consumed zero BSR",
+            Self::Integer(_) => "Large-angle phase reduction incomplete",
             Self::ReductionArithmetic(error) => error.reason(),
         }
     }
@@ -93,7 +93,7 @@ pub enum SourceModeratePhaseWordZeroError {
 impl SourceModeratePhaseWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::OutsideModerateDomain { .. } => "CPU0 F64 phase moderate entry requires magnitude[8,actual411e848000000000 threshold)",
+            Self::OutsideModerateDomain { .. } => "Phase magnitude outside the medium-angle range",
             Self::Source(error) => error.reason(),
         }
     }
@@ -150,12 +150,12 @@ pub enum SourceMdctPhaseWordZeroError {
 impl SourceMdctPhaseWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::WordZeroRequired { .. } => "57ddb0/586960 SSE phase requires explicitly supplied word zero",
-            Self::ArchitectureNotClosed => "MDCT phase arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "MDCT phase state is not RNE/all-masked/gradual",
-            Self::OutsideMdctAngleDomain { .. } => "word-zero phase requires +zero or positive F64 [2^-16,pi)",
-            Self::OutsideShortAngleDomain { .. } => "word-zero short phase requires finite magnitude below8",
-            Self::CountContinuationRequired { .. } => "word-zero phase bounded CVTTPD2DQ continuation required",
+            Self::WordZeroRequired { .. } => "Expected the baseline phase mode",
+            Self::ArchitectureNotClosed => "Unsupported transform phase architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::OutsideMdctAngleDomain { .. } => "Phase angle outside the supported range",
+            Self::OutsideShortAngleDomain { .. } => "Expected a finite phase magnitude below 8",
+            Self::CountContinuationRequired { .. } => "Phase index conversion incomplete",
             Self::Arithmetic(error) => error.reason(),
         }
     }
@@ -270,10 +270,10 @@ fn graph(a: &mut impl ArithmeticContext, bits: u64, sine: bool) -> Result<u64, S
 
     if magnitude < DIRECT_LIMIT {
         if !sine && magnitude < SMALL_COSINE {
-            let _ = a.add("57e0c4/discarded small cosine ADDSD", bits, TWO32).map_err(E)?;
-            let square = a.multiply("57e0e1/small cosine square MULSD", bits, bits).map_err(E)?;
-            let half = a.multiply("57e0e5/small cosine half MULSD", square, HALF).map_err(E)?;
-            return a.subtract("57e0ed/small cosine SUBSD", ONE, half).map_err(E);
+            let _ = a.add("discarded small cosine ADDSD", bits, TWO32).map_err(E)?;
+            let square = a.multiply("small cosine square MULSD", bits, bits).map_err(E)?;
+            let half = a.multiply("small cosine half MULSD", square, HALF).map_err(E)?;
+            return a.subtract("small cosine SUBSD", ONE, half).map_err(E);
         }
         let square = a.multiply("word0 F64/direct square MULSD", bits, bits).map_err(E)?;
         return if sine { sine_kernel(a, bits, square, None).map_err(E) }
@@ -328,26 +328,26 @@ fn sine_kernel(a: &mut impl ArithmeticContext, head: u64, square: u64, tail: Opt
 }
 
 fn direct_cosine(a: &mut impl ArithmeticContext, square: u64) -> Result<u64, VorbisScalarError> {
-    let fourth = a.multiply("57e031/direct cosine fourth MULSD", square, square)?;
-    let p = a.multiply("57e03d/direct cosine second MULSD", COS_COEFFICIENTS[1].to_bits(), square)?;
-    let q = a.multiply("57e049/direct cosine fourth coefficient MULSD", COS_COEFFICIENTS[3].to_bits(), square)?;
-    let t = a.multiply("57e051/direct cosine sixth coefficient MULSD", COS_COEFFICIENTS[5].to_bits(), square)?;
-    let eighth = a.multiply("57e055/direct cosine eighth MULSD", fourth, fourth)?;
-    let p = a.add("57e059/direct cosine first ADDSD", p, COS_COEFFICIENTS[0].to_bits())?;
-    let p = a.multiply("57e061/direct cosine low group MULSD", p, fourth)?;
-    let q = a.add("57e065/direct cosine third ADDSD", q, COS_COEFFICIENTS[2].to_bits())?;
-    let negative_half = a.multiply("57e06d/direct cosine negative half MULSD", square, NEGATIVE_HALF)?;
-    let t = a.add("57e075/direct cosine fifth ADDSD", t, COS_COEFFICIENTS[4].to_bits())?;
-    let q = a.multiply("57e07d/direct cosine middle group MULSD", q, eighth)?;
-    let twelfth = a.multiply("57e081/direct cosine twelfth MULSD", fourth, eighth)?;
-    let t = a.multiply("57e085/direct cosine high group MULSD", twelfth, t)?;
-    let p = a.add("57e091/direct cosine first groups ADDSD", p, q)?;
-    let leading = a.add("57e099/direct cosine leading ADDSD", negative_half, ONE)?;
-    let loss = a.subtract("57e09d/direct cosine first loss SUBSD", ONE, leading)?;
-    let loss = a.add("57e0a1/direct cosine half loss ADDSD", loss, negative_half)?;
-    let p = a.add("57e0a5/direct cosine high group ADDSD", p, t)?;
-    let result = a.add("57e0a9/direct cosine correction ADDSD", loss, p)?;
-    a.add("57e0ad/direct cosine finish ADDSD", result, leading)
+    let fourth = a.multiply("direct cosine fourth MULSD", square, square)?;
+    let p = a.multiply("direct cosine second MULSD", COS_COEFFICIENTS[1].to_bits(), square)?;
+    let q = a.multiply("direct cosine fourth coefficient MULSD", COS_COEFFICIENTS[3].to_bits(), square)?;
+    let t = a.multiply("direct cosine sixth coefficient MULSD", COS_COEFFICIENTS[5].to_bits(), square)?;
+    let eighth = a.multiply("direct cosine eighth MULSD", fourth, fourth)?;
+    let p = a.add("direct cosine first ADDSD", p, COS_COEFFICIENTS[0].to_bits())?;
+    let p = a.multiply("direct cosine low group MULSD", p, fourth)?;
+    let q = a.add("direct cosine third ADDSD", q, COS_COEFFICIENTS[2].to_bits())?;
+    let negative_half = a.multiply("direct cosine negative half MULSD", square, NEGATIVE_HALF)?;
+    let t = a.add("direct cosine fifth ADDSD", t, COS_COEFFICIENTS[4].to_bits())?;
+    let q = a.multiply("direct cosine middle group MULSD", q, eighth)?;
+    let twelfth = a.multiply("direct cosine twelfth MULSD", fourth, eighth)?;
+    let t = a.multiply("direct cosine high group MULSD", twelfth, t)?;
+    let p = a.add("direct cosine first groups ADDSD", p, q)?;
+    let leading = a.add("direct cosine leading ADDSD", negative_half, ONE)?;
+    let loss = a.subtract("direct cosine first loss SUBSD", ONE, leading)?;
+    let loss = a.add("direct cosine half loss ADDSD", loss, negative_half)?;
+    let p = a.add("direct cosine high group ADDSD", p, t)?;
+    let result = a.add("direct cosine correction ADDSD", loss, p)?;
+    a.add("direct cosine finish ADDSD", result, leading)
 }
 
 fn reduced_cosine(a: &mut impl ArithmeticContext, head: u64, tail: u64, square: u64) -> Result<u64, VorbisScalarError> {

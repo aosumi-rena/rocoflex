@@ -56,7 +56,7 @@ pub struct SourceCrtStorageNativeRetBindings<D, P, T> {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtStorageNativeRetBindReason { CompletedFreeRequired, DeleteOwnerRequired, ActualBeforeRetFrameRequired }
-#[must_use = "retain same D/H/disposition/frame/FP/services and independent target owner"]
+#[must_use]
 pub struct SourceCrtStorageNativeRetBindFailure<D, P, S, T> {
     pub owner: SourceCrtStorageOwnedFreeCompletion<D, P, S>,
     pub target_owner: T,
@@ -79,11 +79,11 @@ pub type SourceCrtStorageNativeRetError<N, E> = SourceCrtNativeRetError<N, E>;
 impl<N, E> SourceCrtNativeRetError<N, E> {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::Adapter { .. } => "actual CRT near-RET adapter failed; same owner/target/frame/FP/resources retained",
-            Self::Partial { .. } => "CRT near RET has only an actual partial/fault prefix; retired return remains required",
-            Self::ReceiptChanged { .. } => "actual RET observation changed while applying its receipt; both observations and advanced state retained",
-            Self::Mismatch { .. } => "actual CRT retired frame/stack read/target/RAX differs from its independent source binding",
-            Self::PrefixMismatch { .. } => "actual CRT retired receipt differs from the same advanced owned frame",
+            Self::Adapter { .. } => "Storage callback return failed",
+            Self::Partial { .. } => "Storage callback return incomplete",
+            Self::ReceiptChanged { .. } => "Storage callback result changed during return",
+            Self::Mismatch { .. } => "Invalid storage callback return state",
+            Self::PrefixMismatch { .. } => "Storage result belongs to a different frame",
         }
     }
 }
@@ -113,7 +113,7 @@ where A: FnOnce(&mut O, &mut N) -> Result<(), E>, F: FnOnce(&O) -> SourceCrtNati
     }
     Ok((actual, retired))
 }
-#[must_use = "retain SAME completed D/H/disposition/P/S, target record and actual native return"]
+#[must_use]
 pub struct SourceCrtStorageCallbackReturned<D, P, S, T, N> {
     pub owner: SourceCrtStorageOwnedFreeCompletion<D, P, S>,
     pub target_owner: T,
@@ -131,7 +131,7 @@ pub struct SourceCrtStorageNativeRetParts<D, P, S, T> {
     pub current_frame: fn(&P) -> SourceCrtNativeRetFrame,
 }
 
-#[must_use = "retain SAME completed free and actual return/exception continuation"]
+#[must_use]
 pub struct SourceCrtStorageCallbackNativeRet<D, P, S, T> {
     owner: SourceCrtStorageOwnedFreeCompletion<D, P, S>,
     target_owner: T,

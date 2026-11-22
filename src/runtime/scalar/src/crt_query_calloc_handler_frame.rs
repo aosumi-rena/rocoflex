@@ -33,14 +33,14 @@ pub struct SourceCrtHandlerFrameBindings<D, P, S, A> {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtHandlerFramePhase { EpilogueRequired, EpilogueContinuationRequired, RetRequired, RetContinuationRequired, Complete }
-#[must_use = "retain original stopped calloc, SAME handler D/full frame/FP/native/lock resources"]
+#[must_use]
 pub struct SourceCrtCallocHandlerFrame<D, P, S, A> {
     calloc: SourceCrtQueryCalloc58f074,
     pub handler: D, pub prefix: P, pub services: S, pub actual_entry: A,
     bindings: SourceCrtHandlerFrameBindings<D, P, S, A>, entry: SourceCrtHandlerActualEntry,
     request: SourceCrtCallocCall, eax: u32, phase: SourceCrtHandlerFramePhase,
 }
-#[must_use = "retain all rejected bind inputs; no handler/calloc replay"]
+#[must_use]
 pub struct SourceCrtHandlerFrameBindFailure<D, P, S, A> {
     pub calloc: SourceCrtQueryCalloc58f074, pub handler: D, pub prefix: P, pub services: S, pub actual_entry: A,
     pub bindings: SourceCrtHandlerFrameBindings<D, P, S, A>,
@@ -57,13 +57,13 @@ pub enum SourceCrtHandlerFrameReturnError<N, E> {
     Caller { actual: N, retired: SourceCrtNativeRetired, current: SourceCrtHandlerActualPrefix,
         source: Option<SourceCrtQueryCallocError> },
 }
-#[must_use = "retain completed SAME handler/entry/epilogue/RET and original calloc source"]
+#[must_use]
 pub struct SourceCrtHandlerFrameReturned<D, P, S, A, R, N> {
     pub owner: SourceCrtCallocHandlerFrame<D, P, S, A>, pub actual_return: N,
     pub actual_epilogue: R,
     pub retired: SourceCrtNativeRetired, pub source: SourceCrtQueryCallocProgress,
 }
-#[must_use = "retain SAME handler/entry/epilogue/RET/frame/FP/native resources with continuing calloc"]
+#[must_use]
 pub struct SourceCrtHandlerFrameRetained<D, P, S, A, R, N> {
     pub handler: D, pub prefix: P, pub services: S, pub actual_entry: A,
     pub actual_epilogue: R, pub actual_return: N, pub retired: SourceCrtNativeRetired,
@@ -89,7 +89,7 @@ struct SourceCrtHandlerFrameRawReturned<D, P, S, A, N> {
     owner: SourceCrtCallocHandlerFrame<D, P, S, A>, actual_return: N,
     retired: SourceCrtNativeRetired, source: SourceCrtQueryCallocProgress,
 }
-#[must_use = "retain actual completed epilogue and SAME owner before actual RET"]
+#[must_use]
 pub struct SourceCrtHandlerEpilogueAccepted<D, P, S, A, R> {
     owner: SourceCrtCallocHandlerFrame<D, P, S, A>, pub actual_epilogue: R,
 }

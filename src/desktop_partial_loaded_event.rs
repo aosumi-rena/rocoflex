@@ -27,7 +27,7 @@ pub enum Phase {
 pub enum Issue<E> { AlreadyHalted, RequiredService(E), SmallPrefix(LoadError), WrongPhase }
 pub struct Stopped<C, E> { pub pending: FinalLoadContinuation<C>, pub issue: Issue<E> }
 
-#[must_use = "Keep the advanced same-controller receiver and all intermediate ownership."]
+#[must_use]
 pub struct FinalLoadContinuation<C> {
     receiver: C,
     phase: Phase,
@@ -283,7 +283,7 @@ pub struct ParameterStopped<C, Q, P, E> {
     pub pending: ParameterContinuation<C, Q, P>, pub issue: ParameterIssue<E>,
 }
 
-#[must_use = "Keep advanced receiver, caller arguments and held parameter identity on refusal."]
+#[must_use]
 pub struct ParameterContinuation<C, Q, P> {
     receiver: C, input: ParameterInput<Q>, held: Option<P>, phase: ParameterPhase, halted: bool,
     value: Option<ParameterValueBits>,
@@ -383,7 +383,7 @@ pub struct CallbackStopped<C, S, E> {
     pub pending: OwnedSmallCallback<C, S>, pub issue: CallbackIssue<E>,
 }
 
-#[must_use = "Keep this same receiver/state/services owner until returned or explicitly abandoned."]
+#[must_use]
 pub struct OwnedSmallCallback<C, S> {
     receiver: C, small: LoadedPartialController, services: S,
     phase: CallbackPhase, halted: bool, incoming_motion_bits: Option<u64>,
@@ -507,7 +507,7 @@ pub enum RemovalIssue<E> { AlreadyHalted, AlreadyReturned, RequiredService(E), S
 pub struct RemovalStopped<C, W, S, E> {
     pub pending: OwnedSmallRemoval<C, W, S>, pub issue: RemovalIssue<E>,
 }
-#[must_use = "Retain the advanced receiver/services/detached wrapper through removal failure."]
+#[must_use]
 pub struct OwnedSmallRemoval<C, W, S> {
     receiver: C, services: S, index: u32, phase: RemovalPhase, halted: bool,
     wrapper: Option<W>, input: Option<CurrentSmallInput>, uninstalled: Option<LoadedPartialController>,
@@ -601,7 +601,7 @@ pub enum StateRemovalIssue<E> { AlreadyHalted, AlreadyReturned, CountOutsideSign
 pub struct StateRemovalStopped<C, N, S, E> {
     pub pending: OwnedStateRemoval<C, N, S>, pub issue: StateRemovalIssue<E>,
 }
-#[must_use = "Retain actual State/services/held source after callback or release refusal."]
+#[must_use]
 pub struct OwnedStateRemoval<C, N, S> {
     receiver: C, services: S, index: u32, phase: StateRemovalPhase, halted: bool,
     count: Option<u32>, source: Option<N>,

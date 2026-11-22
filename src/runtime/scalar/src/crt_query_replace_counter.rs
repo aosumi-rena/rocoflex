@@ -66,7 +66,7 @@ pub struct SourceCrtReplaceCounterBindings<D, P, S, W, E, N> {
     pub owned_ret: fn(&P, &S, &W) -> Option<SourceCrtNativeRetObservation>,
 }
 
-#[must_use = "retain distinct completed counter, whole-call, entry and actual native owners"]
+#[must_use]
 pub struct SourceCrtReplaceCounterResources<D, W, E, N> {
     held: Option<D>, pub whole_call: W, pub actual_entry: E, pub actual_ret: N,
 }
@@ -78,7 +78,7 @@ impl<D, W, E, N> SourceCrtReplaceCounterResources<D, W, E, N> {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtReplaceCounterAdmissionReason { WholeCallRequired, EntryOrReturnRequired, PrefixRequired }
-#[must_use = "retain original stopped query and all actual rejected child/frame/FP/resources"]
+#[must_use]
 pub struct SourceCrtReplaceCounterRejected<D, P, S, H, W, E, N> {
     pub query: SourceCrtQueryOwned<P, S, H>, pub resources: SourceCrtReplaceCounterResources<D, W, E, N>,
     pub bindings: SourceCrtReplaceCounterBindings<D, P, S, W, E, N>,
@@ -89,7 +89,7 @@ pub struct SourceCrtReplaceCounterRejected<D, P, S, H, W, E, N> {
     pub frame: SourceCrtNativeRetFrame, pub registers: (u64, u64),
     pub reason: SourceCrtReplaceCounterAdmissionReason,
 }
-#[must_use = "original source remains stopped until actual OWN heldNone adoption"]
+#[must_use]
 pub struct SourceCrtReplaceCounterBound<D, P, S, H, W, E, N> {
     query: SourceCrtQueryOwned<P, S, H>, resources: SourceCrtReplaceCounterResources<D, W, E, N>,
     bindings: SourceCrtReplaceCounterBindings<D, P, S, W, E, N>,

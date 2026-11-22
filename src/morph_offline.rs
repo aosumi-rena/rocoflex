@@ -13,7 +13,7 @@ pub(crate) fn render(analysis_model: &Path, synthesis_model: &Path, legacy: bool
     bus.publish_canvas(snapshot)?;
     let mut graph = if legacy {
         let (analysis, synthesis) = super::read_legacy_models(analysis_model, synthesis_model)?;
-        LiveGraph::with_legacy_vocoder(&analysis, &synthesis, bus.reader(), false)?
+        LiveGraph::with_legacy_vocoder(&analysis, &synthesis, bus.reader(), crate::prepare_quality::PrepareProfile::Highest, false)?
     } else {
         let (analysis, synthesis) = super::read_models(analysis_model, synthesis_model)?;
         LiveGraph::with_instance_policy(&analysis, &synthesis, bus.reader(),

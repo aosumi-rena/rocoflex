@@ -5,11 +5,11 @@ use super::shared_scalar_f32::ScalarF32Architecture;
 use super::vorbis_power::VorbisScalarError;
 
 const SITES: SerialExpSites = SerialExpSites([
-    "5b05e8/serial count split MULPD.low", "5b05f9/serial remainder SUBPD.low",
-    "5b060e/serial polynomial MULPD.low", "5b0612/serial square MULPD.low",
-    "5b0616/serial polynomial ADDPD.low", "5b061e/serial correction MULPD.low",
-    "5b0622/serial reduced ADDPD.low", "5b0637/serial table MULPD.low",
-    "5b063b/serial table ADDPD.low", "5b0644/serial binary scale MULPD.low",
+    "serial count split MULPD.low", "serial remainder SUBPD.low",
+    "serial polynomial MULPD.low", "serial square MULPD.low",
+    "serial polynomial ADDPD.low", "serial correction MULPD.low",
+    "serial reduced ADDPD.low", "serial table MULPD.low",
+    "serial table ADDPD.low", "serial binary scale MULPD.low",
 ]);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -38,19 +38,19 @@ impl SourceUiSerialExpError {
     pub fn reason(&self) -> &'static str {
         match &self.required {
             SourceUiSerialExpRequired::NonzeroUiSelector { .. } =>
-                "5b0580 nonzero UI selector requires the distinct AVX/FMA body",
+                "Selected easing mode requires AVX and FMA",
             SourceUiSerialExpRequired::ArchitectureNotClosed =>
-                "5b0580 explicit arithmetic architecture is not closed",
+                "Unsupported easing architecture",
             SourceUiSerialExpRequired::UnsupportedEnvironment { .. } =>
-                "5b0580 serial state must be RNE/all-masked/gradual",
+                "Unsupported floating-point controls",
             SourceUiSerialExpRequired::OutsideEasingDomain { .. } =>
-                "5b0580 value is outside the admitted finite [-4,0] easing domain",
+                "Easing input outside the supported range",
             SourceUiSerialExpRequired::SpecialPath { .. } =>
-                "5b0580 nonfinite source path is outside this ordinary value service",
+                "Expected a finite easing input",
             SourceUiSerialExpRequired::UpperOperand { .. } =>
-                "5b0580 original upper F64 requires a further packed-lane continuation",
+                "Unsupported upper easing lane",
             SourceUiSerialExpRequired::OrdinaryPrefix { .. } =>
-                "5b0580 ordinary source prefix is required",
+                "Easing operation has not started",
             SourceUiSerialExpRequired::Arithmetic(error) => error.reason(),
         }
     }

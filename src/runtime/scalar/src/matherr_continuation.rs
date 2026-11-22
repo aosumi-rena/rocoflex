@@ -93,13 +93,13 @@ pub enum SourceMatherr59601cError {
 impl SourceMatherr59601cError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::RestoreControlsRequired { .. } => "59601c restored controls are outside bounded RNE/masked/gradual domain",
+            Self::RestoreControlsRequired { .. } => "Unsupported restored floating-point controls",
             Self::UnexpectedStep { .. } | Self::UnexpectedCallbackReceipt { .. } | Self::UnexpectedErrnoReceipt { .. }
                 | Self::UnexpectedErrnoRecordReceipt { .. } =>
-                "59601c completion does not match its pending source service",
-            Self::GuardedReceiptMismatch { .. } => "590ba0 guarded callback receipt has a different target/type binding",
+                "Unexpected math error handler result",
+            Self::GuardedReceiptMismatch { .. } => "Unexpected math callback target or type",
             Self::ErrnoReceiptMismatch { .. } | Self::ErrnoRecordReceiptMismatch { .. } =>
-                "599f64 actual errno-write receipt does not match requested value/state",
+                "Unexpected error number after write",
         }
     }
 }

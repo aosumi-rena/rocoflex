@@ -235,7 +235,6 @@ pub(super) fn preset_filename(name: &str, experimental: bool) -> String {
         return format!("{stem}.exp.json");
     }
     if stem.to_ascii_lowercase().ends_with(".exp") {
-        // Keep an ordinary preset's display name while avoiding the reserved suffix.
         stem.push('_');
     }
     format!("{stem}.json")

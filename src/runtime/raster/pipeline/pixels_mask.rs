@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 pub enum MultiplyStatus { Pending, Complete, Stopped }
 #[derive(Clone, Copy, Debug)]
 pub struct MultiplyProgress { pub validated: bool, pub x: usize, pub y: usize }
-#[must_use = "retain this partial image/mask borrow until completion or stopped failure"]
+#[must_use]
 pub struct MaskMultiplier<'a> {
     pixels: &'a mut [u8],
     mask: &'a Mask,

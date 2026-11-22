@@ -16,8 +16,8 @@ pub enum SourceRawMulsdError {
 impl SourceRawMulsdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "MULSD requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::CandidateRequired { .. } => "MULSD candidate/exception continuation is not closed",
+            Self::ControlRequired { .. } => "Unsupported double multiplication mode",
+            Self::CandidateRequired { .. } => "Double multiplication incomplete",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

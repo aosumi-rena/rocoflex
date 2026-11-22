@@ -16,7 +16,7 @@ impl RasterGraph {
         (self.clip,self.affine_words,self.table,self.progress)
     }
 }
-#[must_use="normal mask graph and SAME admission/transformed owner"]
+#[must_use]
 pub struct RasterCompleted<A:Admission> {
     graph:RasterGraph,admission:A,owner:TransformCompleted,
 }
@@ -28,7 +28,7 @@ impl<A:Admission> RasterCompleted<A> {
         (self.graph,self.admission,self.owner)
     }
 }
-#[must_use="retain terminal graph FIRST, actual admission SECOND, SAME owner THIRD"]
+#[must_use]
 pub struct RasterFailure<A:Admission> {
 
     graph:binding::TerminalMaskFailure<binding::Error<A::Error,glyph_math::Stopped>>,

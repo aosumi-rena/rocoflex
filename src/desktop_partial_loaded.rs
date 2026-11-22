@@ -34,7 +34,7 @@ pub struct LoadRefusal { pub input: FinalLoadInput, pub error: LoadError }
 #[derive(Clone, Debug)]
 pub struct LoadedPartialController { state: PartialController, reload: i32, cache: CacheBinding }
 
-#[must_use = "Retain the loaded candidate through checked probe completion or refusal."]
+#[must_use]
 pub struct PreparedLoadedPartial {
     candidate: LoadedPartialController, phase: Phase,
     after: Option<AfterProbe>, probe_attempted: bool,
@@ -56,7 +56,7 @@ pub struct AppendConstructionRefusal {
     pub before: LoadedPartialController, pub source: Source, pub error: Error,
 }
 
-#[must_use = "Statistics/real services/checked probe and current reload suffix remain pending."]
+#[must_use]
 pub struct AppendedSourceState {
     state: PromotionState, reload: i32, cache: CacheBinding, appended_index: usize,
 }
@@ -279,7 +279,7 @@ pub trait SmallGeometryGuardService {
     fn execute(&mut self, candidate: &mut LoadedPartialController) -> Result<(), Self::Error>;
 }
 
-#[must_use = "Keep the advanced receiver and service failure; the guard cannot be retried."]
+#[must_use]
 pub struct RequiredSmallGeometryGuard { candidate: LoadedPartialController, attempted: bool }
 pub enum GuardError<E> { AlreadyAttempted, Service(E) }
 pub struct GuardFailure<E> { pub pending: RequiredSmallGeometryGuard, pub error: GuardError<E> }

@@ -1,7 +1,7 @@
 use eframe::egui;
 use std::{any::Any, path::Path, thread::JoinHandle, time::Duration};
 
-pub(super) struct Summary { version: u32, nodes: usize }
+pub(super) struct Summary { pub(super) version: u32, pub(super) nodes: usize }
 impl Summary {
     pub fn from_bytes(bytes: &[u8]) -> crate::Result<Self> {
         let tree = crate::model::ModelTree::parse(bytes)?;

@@ -39,10 +39,10 @@ pub struct SourceAtan2F32CallReceipt {
 impl SourceAtan2F32Error {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "57d678 explicit arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "57d678 state is not RNE/all-masked/gradual",
-            Self::NonFinitePairRequired { .. } => "57d678 nonfinite pair requires its separate source continuation",
-            Self::TableIndexContinuationRequired { .. } => "57d678 retained table index continuation required",
+            Self::ArchitectureNotClosed => "Unsupported arctangent architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::NonFinitePairRequired { .. } => "Nonfinite arctangent input",
+            Self::TableIndexContinuationRequired { .. } => "Arctangent table index out of range",
             Self::Arithmetic(error) => error.reason(),
         }
     }
@@ -142,14 +142,14 @@ impl SourceAtan2F32 {
             }
             let ratio = if exponent_difference < -126 {
 
-                let scaled = arithmetic.multiply("57d7ff/tiny ratio scaled MULSD", 0x4630_0000_0000_0000, y)
+                let scaled = arithmetic.multiply("tiny ratio scaled MULSD", 0x4630_0000_0000_0000, y)
                     .map_err(SourceAtan2F32Error::Arithmetic)?;
-                let scaled = arithmetic.divide("57d803/tiny ratio scaled DIVSD", scaled, x)
+                let scaled = arithmetic.divide("tiny ratio scaled DIVSD", scaled, x)
                     .map_err(SourceAtan2F32Error::Arithmetic)?;
                 let field = ((scaled & !SIGN64) >> 52) - 100;
                 (scaled & 0x800f_ffff_ffff_ffff) | (field << 52)
             } else {
-                arithmetic.divide("57d8b0/tiny ratio DIVSD", y, x).map_err(SourceAtan2F32Error::Arithmetic)?
+                arithmetic.divide("tiny ratio DIVSD", y, x).map_err(SourceAtan2F32Error::Arithmetic)?
             };
 
             return Self::narrow(ratio, arithmetic);
@@ -160,66 +160,66 @@ impl SourceAtan2F32 {
 
         let swapped = ay > ax;
         let (smaller, larger) = if swapped { (ax, ay) } else { (ay, ax) };
-        let ratio = arithmetic.divide("57d956/general ratio DIVSD", smaller, larger)
+        let ratio = arithmetic.divide("general ratio DIVSD", smaller, larger)
             .map_err(SourceAtan2F32Error::Arithmetic)?;
         let mut angle = if ratio > GRID_LIMIT {
 
-            let grid = arithmetic.multiply("57d96f/grid MULSD", ratio, GRID_SCALE)
+            let grid = arithmetic.multiply("grid MULSD", ratio, GRID_SCALE)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let scaled_smaller = arithmetic.multiply("57d976/numerator scale MULSD", smaller, GRID_SCALE)
+            let scaled_smaller = arithmetic.multiply("numerator scale MULSD", smaller, GRID_SCALE)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let grid = arithmetic.add("57d97a/grid half ADDSD", grid, HALF)
+            let grid = arithmetic.add("grid half ADDSD", grid, HALF)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
             let (integer, flags) = truncate_grid(grid).ok_or(SourceAtan2F32Error::TableIndexContinuationRequired {
                 grid_bits: grid, advanced: arithmetic.state,
             })?;
             arithmetic.state = arithmetic.state.with_source_status(flags);
             let count = round_exact_normal_u128(u128::from(integer), 0).0;
-            let numerator_product = arithmetic.multiply("57d99a/count numerator MULSD", count, smaller)
+            let numerator_product = arithmetic.multiply("count numerator MULSD", count, smaller)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let denominator_product = arithmetic.multiply("57d99e/count denominator MULSD", count, larger)
+            let denominator_product = arithmetic.multiply("count denominator MULSD", count, larger)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let scaled_larger = arithmetic.multiply("57d9a2/denominator scale MULSD", larger, GRID_SCALE)
+            let scaled_larger = arithmetic.multiply("denominator scale MULSD", larger, GRID_SCALE)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let residual_numerator = arithmetic.subtract("57d9a6/reduction numerator SUBSD", scaled_smaller, denominator_product)
+            let residual_numerator = arithmetic.subtract("reduction numerator SUBSD", scaled_smaller, denominator_product)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let residual_denominator = arithmetic.add("57d9aa/reduction denominator ADDSD", numerator_product, scaled_larger)
+            let residual_denominator = arithmetic.add("reduction denominator ADDSD", numerator_product, scaled_larger)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let reduced = arithmetic.divide("57d9ae/reduction DIVSD", residual_numerator, residual_denominator)
+            let reduced = arithmetic.divide("reduction DIVSD", residual_numerator, residual_denominator)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let table_angle = arithmetic.add("57d9b8/table ADDSD", reduced, ATAN_TABLE[(integer - 16) as usize])
+            let table_angle = arithmetic.add("table ADDSD", reduced, ATAN_TABLE[(integer - 16) as usize])
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let square = arithmetic.multiply("57d9bd/table square MULSD", reduced, reduced)
+            let square = arithmetic.multiply("table square MULSD", reduced, reduced)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let cube = arithmetic.multiply("57d9c1/table cube MULSD", square, reduced)
+            let cube = arithmetic.multiply("table cube MULSD", square, reduced)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let correction = arithmetic.multiply("57d9c5/table correction MULSD", cube, TABLE_CUBIC)
+            let correction = arithmetic.multiply("table correction MULSD", cube, TABLE_CUBIC)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            arithmetic.subtract("57da13/table correction SUBSD", table_angle, correction).map_err(SourceAtan2F32Error::Arithmetic)?
+            arithmetic.subtract("table correction SUBSD", table_angle, correction).map_err(SourceAtan2F32Error::Arithmetic)?
         } else if ratio < SMALL_LIMIT { ratio }
         else {
-            let square = arithmetic.multiply("57d9e8/small square MULSD", ratio, ratio)
+            let square = arithmetic.multiply("small square MULSD", ratio, ratio)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let high = arithmetic.multiply("57d9ef/small seventh MULSD", square, SMALL_SEVENTH)
+            let high = arithmetic.multiply("small seventh MULSD", square, SMALL_SEVENTH)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let p = arithmetic.subtract("57d9f7/small fifth SUBSD", SMALL_FIFTH, high)
+            let p = arithmetic.subtract("small fifth SUBSD", SMALL_FIFTH, high)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let p = arithmetic.multiply("57da03/small polynomial MULSD", p, square)
+            let p = arithmetic.multiply("small polynomial MULSD", p, square)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let cube = arithmetic.multiply("57da07/small cube MULSD", square, ratio)
+            let cube = arithmetic.multiply("small cube MULSD", square, ratio)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let p = arithmetic.subtract("57da0b/small third SUBSD", SMALL_THIRD, p)
+            let p = arithmetic.subtract("small third SUBSD", SMALL_THIRD, p)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            let correction = arithmetic.multiply("57da0f/small correction MULSD", p, cube)
+            let correction = arithmetic.multiply("small correction MULSD", p, cube)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
-            arithmetic.subtract("57da13/small correction SUBSD", ratio, correction).map_err(SourceAtan2F32Error::Arithmetic)?
+            arithmetic.subtract("small correction SUBSD", ratio, correction).map_err(SourceAtan2F32Error::Arithmetic)?
         };
         if swapped {
-            angle = arithmetic.subtract("57da23/swapped half-pi SUBSD", HALF_PI_F64, angle)
+            angle = arithmetic.subtract("swapped half-pi SUBSD", HALF_PI_F64, angle)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
         }
         if negative_x {
-            angle = arithmetic.subtract("57da37/negative-x pi SUBSD", PI_F64, angle)
+            angle = arithmetic.subtract("negative-x pi SUBSD", PI_F64, angle)
                 .map_err(SourceAtan2F32Error::Arithmetic)?;
         }
         if ysign != 0 { angle ^= SIGN64; }

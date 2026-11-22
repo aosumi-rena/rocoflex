@@ -24,9 +24,9 @@ pub enum SourceNormOverflowError {
 impl SourceNormOverflowError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::SourceOverflowRequestRequired { .. } => "579900 requires its actual finite-pair overflow prefix/596150 argument constants",
-            Self::OuterReturnBindingRequired { .. } => "579900 actual596150 return does not bind the pending source arguments",
-            Self::CookieFailureContinuationRequired { .. } => "579900 actual596150 cookie-failure continuation required",
+            Self::SourceOverflowRequestRequired { .. } => "Invalid norm overflow arguments",
+            Self::OuterReturnBindingRequired { .. } => "Unexpected norm overflow result",
+            Self::CookieFailureContinuationRequired { .. } => "Stack check failure handler required",
         }
     }
     pub fn known_advanced_state(self) -> ExplicitExceptionState {
@@ -36,7 +36,7 @@ impl SourceNormOverflowError {
         }
     }
 }
-#[must_use = "retain actual outer callback/frame/errno resources and their advanced-state suffix"]
+#[must_use]
 pub struct SourceNormOverflowServiceFailure<E> {
     pub cause: E,
     pub pending: SourceF32MatherrOuterArguments,

@@ -29,7 +29,7 @@ pub enum SourceF32SelectionError { ArchitectureNotClosed }
 
 impl SourceF32SelectionError {
     pub fn reason(self) -> &'static str {
-        match self { Self::ArchitectureNotClosed => "explicit Intel MINSS/MAXSS/CMPSS architecture required" }
+        match self { Self::ArchitectureNotClosed => "Unsupported single-precision comparison architecture" }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState { entry }
 }

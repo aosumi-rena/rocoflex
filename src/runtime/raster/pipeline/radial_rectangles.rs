@@ -25,7 +25,7 @@ pub struct RectangleProgress {
     pub completed_pixels: usize,
 }
 
-#[must_use = "retain this invocation, its partial bytes and SAME math owner across yields or failures"]
+#[must_use]
 pub struct RectangleShader<'a, M: SqrtServices> {
     bytes: &'a mut [u8],
     math: &'a mut M,

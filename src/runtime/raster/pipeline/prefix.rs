@@ -133,7 +133,7 @@ pub struct AlphaProgress {
 #[derive(Debug)]
 pub enum AlphaCause { Source(Error), RequiredExp(ExpRequest) }
 #[derive(Debug)]
-#[must_use = "retain current walk and first/second exp progress; no retry"]
+#[must_use]
 pub struct AlphaFailure { pub cause: AlphaCause, pub walk: RadialWalk, pub partial: AlphaProgress }
 impl AlphaFailure {
     fn into_host_error(self) -> Error {
@@ -232,7 +232,7 @@ pub struct CommandProgress {
 #[derive(Debug)]
 pub enum CommandCause { Source(Error), Alpha(AlphaFailure), MissingState }
 #[derive(Debug)]
-#[must_use = "retain the advanced command/gradient prefix and required exp owner"]
+#[must_use]
 pub struct CommandFailure { pub cause: CommandCause, pub partial: CommandProgress }
 impl CommandFailure {
     fn into_host_error(self) -> Error {

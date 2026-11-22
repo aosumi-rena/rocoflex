@@ -38,10 +38,10 @@ pub struct SourceF64ExpCallReceipt {
 impl SourceF64ExpError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "explicit F64 arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "explicit F64 exp state is not RNE/all-masked/gradual",
-            Self::OutsideWheelDomain { .. } => "57ee70 input is outside finite [-25/16,+25/16] wheel domain",
-            Self::ReductionRequired { .. } => "57ee70 bounded truncation continuation required",
+            Self::ArchitectureNotClosed => "Unsupported double-precision architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::OutsideWheelDomain { .. } => "Exponential input outside the supported interval",
+            Self::ReductionRequired { .. } => "Exponential range reduction incomplete",
             Self::Arithmetic(error) => error.reason(),
         }
     }
@@ -119,15 +119,15 @@ impl SourceF64Exp {
                     else { 0x20 | if magnitude < 0x0010_0000_0000_0000 { 2 } else { 0 } };
                 return Ok((ONE, arithmetic.state.with_source_status(flags)));
             }
-            let _discarded = arithmetic.add("57ee70/tiny discarded ADDSD", bits, TWO32)
+            let _discarded = arithmetic.add("tiny discarded ADDSD", bits, TWO32)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let result = arithmetic.add("57ee70/tiny result ADDSD", bits, ONE)
+            let result = arithmetic.add("tiny result ADDSD", bits, ONE)
                 .map_err(SourceF64ExpError::Arithmetic)?;
             return Ok((result, arithmetic.state));
         }
 
         let fused = self.explicit_source_word != 0;
-        let scaled = arithmetic.multiply("57ee70/LOG2_64 MULSD", bits, LOG2_64.to_bits())
+        let scaled = arithmetic.multiply("LOG2_64 MULSD", bits, LOG2_64.to_bits())
             .map_err(SourceF64ExpError::Arithmetic)?;
         let (integer, truncated_bits, flags) = truncate_bounded_count(scaled, arithmetic.state)?;
         arithmetic.state = arithmetic.state.with_source_status(flags);
@@ -136,64 +136,64 @@ impl SourceF64Exp {
             else { round_exact_normal_u128(u128::from(integer.unsigned_abs()), 0).0
                 | if integer < 0 { SIGN } else { 0 } };
         let reduced = if fused {
-            let first = arithmetic.fma("57f129/reduction VFMADD231SD", count, NEGATIVE_LN2_64_HIGH, bits)
+            let first = arithmetic.fma("reduction VFMADD231SD", count, NEGATIVE_LN2_64_HIGH, bits)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let low = arithmetic.multiply("57f132/reduction low VMULSD", count, NEGATIVE_LN2_64_LOW)
+            let low = arithmetic.multiply("reduction low VMULSD", count, NEGATIVE_LN2_64_LOW)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            arithmetic.add("57f13a/reduction VADDSD", low, first).map_err(SourceF64ExpError::Arithmetic)?
+            arithmetic.add("reduction VADDSD", low, first).map_err(SourceF64ExpError::Arithmetic)?
         } else {
-            let high = arithmetic.multiply("57ef0e/reduction high MULSD", count, NEGATIVE_LN2_64_HIGH)
+            let high = arithmetic.multiply("reduction high MULSD", count, NEGATIVE_LN2_64_HIGH)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let low = arithmetic.multiply("57ef22/reduction low MULSD", count, NEGATIVE_LN2_64_LOW)
+            let low = arithmetic.multiply("reduction low MULSD", count, NEGATIVE_LN2_64_LOW)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let first = arithmetic.add("57ef2a/reduction first ADDSD", bits, high)
+            let first = arithmetic.add("reduction first ADDSD", bits, high)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            arithmetic.add("57ef2e/reduction second ADDSD", low, first).map_err(SourceF64ExpError::Arithmetic)?
+            arithmetic.add("reduction second ADDSD", low, first).map_err(SourceF64ExpError::Arithmetic)?
         };
 
         let polynomial = if fused {
-            let p = arithmetic.fma("57f152/polynomial FMA720", ONE_720, reduced, ONE_120)
+            let p = arithmetic.fma("polynomial FMA720", ONE_720, reduced, ONE_120)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let p = arithmetic.fma("57f15b/polynomial FMA120", p, reduced, ONE_24)
+            let p = arithmetic.fma("polynomial FMA120", p, reduced, ONE_24)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let p = arithmetic.fma("57f164/polynomial FMA24", p, reduced, POLY_THIRD.to_bits())
+            let p = arithmetic.fma("polynomial FMA24", p, reduced, POLY_THIRD.to_bits())
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let p = arithmetic.fma("57f16d/polynomial FMA6", p, reduced, POLY_HALF.to_bits())
+            let p = arithmetic.fma("polynomial FMA6", p, reduced, POLY_HALF.to_bits())
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let square = arithmetic.multiply("57f176/polynomial square VMULSD", reduced, reduced)
+            let square = arithmetic.multiply("polynomial square VMULSD", reduced, reduced)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            arithmetic.fma("57f17a/polynomial final FMA", square, p, reduced).map_err(SourceF64ExpError::Arithmetic)?
+            arithmetic.fma("polynomial final FMA", square, p, reduced).map_err(SourceF64ExpError::Arithmetic)?
         } else {
-            let upper = arithmetic.multiply("57ef3a/polynomial MULSD720", ONE_720, reduced)
+            let upper = arithmetic.multiply("polynomial MULSD720", ONE_720, reduced)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let lower = arithmetic.multiply("57ef4a/polynomial MULSD6", POLY_THIRD.to_bits(), reduced)
+            let lower = arithmetic.multiply("polynomial MULSD6", POLY_THIRD.to_bits(), reduced)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let upper = arithmetic.add("57ef4e/polynomial ADDSD120", upper, ONE_120)
+            let upper = arithmetic.add("polynomial ADDSD120", upper, ONE_120)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let square = arithmetic.multiply("57ef56/polynomial square MULSD", reduced, reduced)
+            let square = arithmetic.multiply("polynomial square MULSD", reduced, reduced)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let lower = arithmetic.add("57ef5a/polynomial ADDSDhalf", lower, POLY_HALF.to_bits())
+            let lower = arithmetic.add("polynomial ADDSDhalf", lower, POLY_HALF.to_bits())
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let fourth = arithmetic.multiply("57ef66/polynomial fourth MULSD", square, square)
+            let fourth = arithmetic.multiply("polynomial fourth MULSD", square, square)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let upper = arithmetic.multiply("57ef6a/polynomial upper MULSD", upper, reduced)
+            let upper = arithmetic.multiply("polynomial upper MULSD", upper, reduced)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let lower = arithmetic.multiply("57ef6e/polynomial lower MULSD", lower, square)
+            let lower = arithmetic.multiply("polynomial lower MULSD", lower, square)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let upper = arithmetic.add("57ef72/polynomial ADDSD24", upper, ONE_24)
+            let upper = arithmetic.add("polynomial ADDSD24", upper, ONE_24)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let lower = arithmetic.add("57ef7a/polynomial ADDSDlinear", lower, reduced)
+            let lower = arithmetic.add("polynomial ADDSDlinear", lower, reduced)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            let upper = arithmetic.multiply("57ef7e/polynomial upper fourth MULSD", upper, fourth)
+            let upper = arithmetic.multiply("polynomial upper fourth MULSD", upper, fourth)
                 .map_err(SourceF64ExpError::Arithmetic)?;
-            arithmetic.add("57ef82/polynomial final ADDSD", lower, upper).map_err(SourceF64ExpError::Arithmetic)?
+            arithmetic.add("polynomial final ADDSD", lower, upper).map_err(SourceF64ExpError::Arithmetic)?
         };
         let index = (integer as u32 & 63) as usize;
-        let expanded = arithmetic.multiply("57ee70/table MULSD", polynomial, EXP_TABLE[index].to_bits())
+        let expanded = arithmetic.multiply("table MULSD", polynomial, EXP_TABLE[index].to_bits())
             .map_err(SourceF64ExpError::Arithmetic)?;
-        let expanded = arithmetic.add("57ee70/table tail ADDSD", expanded, EXP_TAIL[index])
+        let expanded = arithmetic.add("table tail ADDSD", expanded, EXP_TAIL[index])
             .map_err(SourceF64ExpError::Arithmetic)?;
-        let expanded = arithmetic.add("57ee70/table head ADDSD", expanded, EXP_HEAD[index])
+        let expanded = arithmetic.add("table head ADDSD", expanded, EXP_HEAD[index])
             .map_err(SourceF64ExpError::Arithmetic)?;
 
         let scale = ((i64::from(integer >> 6)) as u64).wrapping_shl(52);

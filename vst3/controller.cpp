@@ -228,7 +228,6 @@ bool setParameterValue(PluginState& state, ParamID id, double value) {
 
 Controller::~Controller() {
     terminate();
-    // Views retain the controller and its borrowed editor bridge.
     if (bridge_) roco_plugin_destroy(bridge_);
 }
 tresult PLUGIN_API Controller::queryInterface(const TUID iid, void** object) {
@@ -730,7 +729,6 @@ void Controller::deliverMultithread(RocoEditor* editor) {
 }
 void Controller::serviceMessages(bool immediately, bool editorOwner, bool policyReply) {
     ControllerHold keep(*this);LatencyTurn turn(*this);
-    // Reject editor-owner or policy-reply reentry on audio callbacks; disk/mailbox work is editor-owner only.
     if ((editorOwner || policyReply) && ProcessAdmission::Scope::any()) return;
     if (editorOwner) syncMultithreadEdits();
     advertiseLatencyRoute();maybeNotifyLatency();
@@ -1318,7 +1316,6 @@ private:
     }
     void deferRemoval(bool referenceAlreadyHeld) {
         removalPending_=true;
-        // Cancellation is non-dropping while a Rust callback is live.
         if (editor_) roco_editor_cancel(editor_);
         if (!removalQueued_) {
             if (!referenceAlreadyHeld) addRef();
@@ -1348,7 +1345,6 @@ private:
     void pump() {
         if (!editor_ || pumping_ || changingScale_ || removing_ || removalPending_) return;
         ControllerHold outerControllerHold(controller_);Controller::LatencyTurn outerTurn(controller_);
-        // Retain the view across host callbacks that may close it.
         addRef();
         {
         EditorCallScope calls(controller_);
@@ -1434,7 +1430,6 @@ private:
             SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(self));
         }
         if (!self) return DefWindowProcW(window,message,w,l);
-        // Teardown callbacks must not resurrect or reenter a closing view.
         if (self->removing_) return DefWindowProcW(window,message,w,l);
         ControllerHold outerControllerHold(self->controller_);Controller::LatencyTurn outerTurn(self->controller_);
         self->addRef();

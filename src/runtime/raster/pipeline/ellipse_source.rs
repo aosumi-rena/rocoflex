@@ -30,10 +30,10 @@ pub struct Progress {
 #[derive(Debug)]
 pub enum Cause<E> {Arithmetic(E),Path(Error),Comparison {request:comparison::Request,error:E}}
 #[derive(Debug)]
-#[must_use="caller keeps SAME partial path and advanced FP provider; no automatic retry"]
+#[must_use]
 pub struct Failure<E> {pub progress:Progress,pub cause:Cause<E>}
 #[derive(Debug)]
-#[must_use="partial path/backing survives construction failure"]
+#[must_use]
 pub struct BuildFailure<E> {pub partial:Path,pub failure:Failure<E>}
 
 struct Compared<'a,P> {fp:&'a mut P,progress:&'a mut Progress}

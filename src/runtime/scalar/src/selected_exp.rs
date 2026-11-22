@@ -107,10 +107,10 @@ pub enum SourceExpDispatchError {
 impl SourceExpDispatchError {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "exp explicit arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "exp state is not RNE/all-masked/gradual",
+            Self::ArchitectureNotClosed => "Unsupported exponential architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
             Self::WordZero(error) => error.reason(),
-            Self::Nonzero(_) => "57f8e0 explicit nonzero source continuation required",
+            Self::Nonzero(_) => "Exponential evaluation incomplete",
         }
     }
     pub fn known_advanced_state(&self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

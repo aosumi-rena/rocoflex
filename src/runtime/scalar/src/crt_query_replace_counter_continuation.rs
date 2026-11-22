@@ -22,20 +22,20 @@ impl<D, P, S, H, W, E, N> SourceCrtReplaceCounterRejected<D, P, S, H, W, E, N> {
         (query.with_retained_history(history), resources, bindings)
     }
 }
-#[must_use = "retain prior ownership-transfer error or actual rejected receipt"]
+#[must_use]
 pub enum SourceCrtReplaceCounterAdoptionRejection<A, F> {
     Service(F),
     Rejected { actual: Option<A>, observed: Option<SourceCrtReplaceCounterEvidence>,
         owned: Option<SourceCrtReplaceCounterEvidence>, reason: SourceCrtReplaceCounterAdoptionReason },
 }
-#[must_use = "retain actual stopped adoption/source continuation and all earlier owner errors"]
+#[must_use]
 pub enum SourceCrtReplaceCounterContinuation<D, P, S, H, W, E, N, A, F> {
     Adoption(SourceCrtReplaceCounterAdoptionContinuation<D, P, S, H, W, E, N, A, F>),
     Source(SourceCrtQueryOwned<P, S, SourceCrtQueryRejectedHistory<H,
         SourceCrtReplaceCounterHistory<D, P, S, W, E, N, A, F>>>),
 }
 
-#[must_use = "retain SAME attempted adoption capability through actual correction"]
+#[must_use]
 pub struct SourceCrtReplaceCounterAdoptionContinuation<D, P, S, H, W, E, N, A, F> {
     pending: SourceCrtReplaceCounterBound<D, P, S, (H, SourceCrtReplaceCounterAdoptionRejection<A, F>), W, E, N>,
     adoption: SourceCrtReplaceCounterAdoption<D, P, S, W, A, F>,
@@ -79,7 +79,7 @@ impl<D, P, S, H, W, E, N, A, F> SourceCrtReplaceCounterAdoptionFailure<D, P, S, 
         }
     }
 }
-#[must_use = "retain missing/same-receipt correction failure without another adoption attempt"]
+#[must_use]
 pub enum SourceCrtReplaceCounterSameReceiptFailure<D, P, S, H, W, E, N, A, F> {
     Required(SourceCrtReplaceCounterContinuation<D, P, S, H, W, E, N, A, F>),
     ActualReceiptRequired { pending: SourceCrtReplaceCounterContinuation<D, P, S, H, W, E, N, A, F>, actual: A },

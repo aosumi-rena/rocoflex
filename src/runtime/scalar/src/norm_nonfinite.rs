@@ -15,12 +15,12 @@ pub enum SourceNormNonfiniteError {
 impl SourceNormNonfiniteError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "57990d explicit arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "57990d state is not RNE/all-masked/gradual",
-            Self::FinitePairRequiresOrdinary { .. } => "57990d requires at least one nonfinite F32; use actual ordinary norm for finite pair",
-            Self::SharedCore { .. } => "57990d actual legacy MULSS/ADDSS instruction admission required",
-            Self::LogicalStateRequired { .. } => "57990d actual scalar result state is outside explicit logical-state admission",
-            Self::SourceInstructionTrap { .. } => "57990d actual scalar instruction trap continuation required",
+            Self::ArchitectureNotClosed => "Unsupported norm architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::FinitePairRequiresOrdinary { .. } => "Expected a nonfinite norm input",
+            Self::SharedCore { .. } => "Norm arithmetic unavailable",
+            Self::LogicalStateRequired { .. } => "Invalid norm result state",
+            Self::SourceInstructionTrap { .. } => "Norm trap handler required",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

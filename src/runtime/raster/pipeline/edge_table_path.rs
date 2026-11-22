@@ -44,7 +44,7 @@ impl Cause<Never> {
 pub struct Completed<'p> {
     pub path:&'p path::Path,pub bounds:[i32;4],pub affine:[f32;6],pub table:EdgeTable,pub progress:Progress,
 }
-#[must_use="retain SAME supplied Path, advanced table/iterator/line and stopped sample; no replay"]
+#[must_use]
 pub struct Failure<'p,E=core::convert::Infallible> {
 
     pub pending_line:Option<Line>,pub walker:Option<LineIterator<'p>>,
@@ -53,7 +53,7 @@ pub struct Failure<'p,E=core::convert::Infallible> {
     pub progress:Progress,pub cause:Cause<E>,
 }
 
-#[must_use="retain actual input/numeric owners with this terminal failed graph"]
+#[must_use]
 pub struct TerminalFailure<E> {
     pending_line:Option<Line>,walker:Option<path::TerminalIterator>,
     table:Option<EdgeTable>,initial_rows:Vec<Option<Row>>,

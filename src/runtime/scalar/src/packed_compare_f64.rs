@@ -44,10 +44,10 @@ pub enum SourceRawCmpltpdError {
 impl SourceRawCmpltpdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "CMPLTPD requires explicit Intel/MXCSR/effective capabilities",
-            Self::CoreStatusRequired { .. } => "CMPLTPD lane status is outside invalid-or-denormal policy",
-            Self::RequiredCrossLanePriority { .. } => "CMPLTPD fresh cross-lane invalid-plus-denormal priority is unimplemented",
-            Self::CoreMaskRequired { .. } => "CMPLTPD existing signaling-less mask projection requires continuation",
+            Self::ControlRequired { .. } => "Unsupported packed comparison mode",
+            Self::CoreStatusRequired { .. } => "Unsupported comparison lane status",
+            Self::RequiredCrossLanePriority { .. } => "Mixed invalid and denormal lane exceptions are unsupported",
+            Self::CoreMaskRequired { .. } => "Packed comparison mask unavailable",
         }
     }
 

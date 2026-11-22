@@ -70,7 +70,7 @@ fn model_paths() -> Result<(PathBuf, PathBuf, bool)> {
         }
         Ok(resolved)
     };
-    let name = if legacy { "legacy vocoder" } else { "userdata" };
+    let name = if legacy { "custom vocoder" } else { "userdata" };
     Ok((required(&analysis, "analysis model")?, required(&synthesis, name)?, legacy))
 }
 

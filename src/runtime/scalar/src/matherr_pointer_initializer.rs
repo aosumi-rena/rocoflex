@@ -59,9 +59,9 @@ pub enum SourcePointerInitializerError {
 impl SourcePointerInitializerError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::UnexpectedSecurityWord { .. } => "567d24 supplied security word does not match pending source read",
-            Self::UnexpectedStoreReceipt { .. } => "567d24 actual store receipt does not match its pending stage",
-            Self::StoreBindingRequired { .. } => "567d24 store receipt has a different ordinal/slot/saved-security word",
+            Self::UnexpectedSecurityWord { .. } => "Unexpected stack check value",
+            Self::UnexpectedStoreReceipt { .. } => "Unexpected initializer store",
+            Self::StoreBindingRequired { .. } => "Initializer store does not match its slot or value",
         }
     }
 }
@@ -222,9 +222,9 @@ pub enum SourceCrtTableError {
 impl SourceCrtTableError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::RelocatedTableRangeRequired { .. } => "567e0c relocated sixteen-record table range overflows supplied address width",
-            Self::ReceiptBindingRequired { .. } => "590788 actual table/guard receipt does not match its pending source operation",
-            Self::ActualNonvolatileContinuationRequired { .. } => "590788 actual guarded return changed source nonvolatile traversal registers",
+            Self::RelocatedTableRangeRequired { .. } => "Initializer table address overflow",
+            Self::ReceiptBindingRequired { .. } => "Unexpected initializer table result",
+            Self::ActualNonvolatileContinuationRequired { .. } => "Initializer callback changed traversal state",
         }
     }
 }
@@ -441,9 +441,9 @@ pub enum SourceCrtStartupError {
 impl SourceCrtStartupError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::RelocatedTableRangeRequired { .. } => "55de6c requires a nonoverflowing actual relocated initializer table range",
-            Self::ReceiptBindingRequired { .. } => "55de6c actual completion does not match pending source call/read/store/table binding",
-            Self::ActualNonvolatileContinuationRequired { .. } => "55de6c actual callee return changed saved source RBX1",
+            Self::RelocatedTableRangeRequired { .. } => "Invalid initializer table range",
+            Self::ReceiptBindingRequired { .. } => "Unexpected initializer result",
+            Self::ActualNonvolatileContinuationRequired { .. } => "Initializer changed the saved return state",
         }
     }
 }

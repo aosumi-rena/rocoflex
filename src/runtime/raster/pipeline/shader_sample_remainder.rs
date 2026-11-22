@@ -7,7 +7,7 @@ use super::super::{NormalReturn,Returned,Output};
 pub enum Outcome<I,R,O> {
     Returned {progress:Progress<I>,normal:NormalReturn<I,R,O>},
 }
-#[must_use = "SAME borrowed Frame and ALL partial RET/output packets must remain in original provider"]
+#[must_use]
 pub struct Failure<I,R,O,E> {
     pub progress:Progress<I>,pub cause:Cause<E>,
     pub normal:Option<NormalReturn<I,R,O>>,

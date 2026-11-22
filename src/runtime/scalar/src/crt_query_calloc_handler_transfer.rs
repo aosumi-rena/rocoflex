@@ -1,7 +1,7 @@
 use super::*;
 use super::super::crt_query_owned::{SourceCrtQueryOwned, SourceCrtQueryOwnedBindings, SourceCrtQueryCursor};
 
-#[must_use = "retain SAME handler/lock/actual entry/epilogue/RET and native resources with query P/S"]
+#[must_use]
 pub struct SourceCrtHandlerQueryHistory<D, P, S, A, R, N> {
     pub handler: D, pub actual_entry: A, pub actual_epilogue: R, pub actual_return: N,
     pub retired: SourceCrtNativeRetired,

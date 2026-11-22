@@ -88,7 +88,7 @@ pub struct Progress<I> {
     pub retained:Option<Retained<I>>,pub completed_post_instructions:usize,
     pub helper_progress:Option<helper::Progress<I>>,
 }
-#[must_use = "preserve SAME loop Frame/history and original partial call packets; no retry"]
+#[must_use]
 pub struct Failure<F,I,AR,AO,R,O,E> {
     pub state:State<F,I,AR,AO>,pub progress:Progress<I>,
     pub returned:Option<Returned<I,R>>,pub output:Option<Output<I,O>>,pub cause:Cause<E>,

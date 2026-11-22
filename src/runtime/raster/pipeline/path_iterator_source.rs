@@ -19,7 +19,7 @@ pub enum Cause<E> {
     Point(point_source::Failure<E>),Curve(curve_source::Failure<E>),Near(curve_source::NearFailure<E>),
 }
 #[derive(Debug)]
-#[must_use="SAME iterator and caller FP owner retain all source partial effects"]
+#[must_use]
 pub struct Failure<E> {pub progress:Progress,pub cause:Cause<E>}
 pub struct Completed {pub line:Option<Line>,pub progress:Progress}
 

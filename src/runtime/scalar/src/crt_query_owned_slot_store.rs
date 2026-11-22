@@ -15,7 +15,7 @@ pub struct SourceCrtQuerySlotStoreBindings<P, S, R> {
     pub actual_store: fn(&R) -> SourceCrtQuerySlotStoreCompleted,
     pub owned_store: fn(&P, &S) -> Option<SourceCrtQuerySlotStoreCompleted>,
 }
-#[must_use = "retain actual store/alias/resource receipt and original advanced prefix"]
+#[must_use]
 pub struct SourceCrtQuerySlotStoreRecord<P, S, R> {
     pub actual: R, pub bindings: SourceCrtQuerySlotStoreBindings<P, S, R>,
     pub admitted: SourceCrtQuerySlotStoreCompleted,
@@ -23,7 +23,7 @@ pub struct SourceCrtQuerySlotStoreRecord<P, S, R> {
 impl<P, S, R> SourceCrtQuerySlotStoreRecord<P, S, R> {
     fn source(&self) -> SourceCrtQueryReceipt { (self.bindings.actual_store)(&self.actual).source }
 }
-#[must_use = "retain stopped original query/history and actual partial or rejected store"]
+#[must_use]
 pub enum SourceCrtQuerySlotStoreFailure<P, S, H, R> {
     Prefix { owner: SourceCrtQueryOwned<P, S, H>, actual: R,
         bindings: SourceCrtQuerySlotStoreBindings<P, S, R>,
@@ -32,7 +32,7 @@ pub enum SourceCrtQuerySlotStoreFailure<P, S, H, R> {
     Source(SourceCrtNativeReturnFailure<SourceCrtQueryOwned<P, S, H>,
         SourceCrtQueryReceiptError<SourceCrtQuerySlotStoreRecord<P, S, R>>>),
 }
-#[must_use = "retain actual rejected publication without a second write"]
+#[must_use]
 pub enum SourceCrtQuerySlotStoreRejection<P, S, R> {
     Prefix { actual: R, bindings: SourceCrtQuerySlotStoreBindings<P, S, R>,
         observed: SourceCrtQuerySlotStoreCompleted, owned: Option<SourceCrtQuerySlotStoreCompleted>,

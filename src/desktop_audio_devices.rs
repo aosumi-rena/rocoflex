@@ -172,7 +172,7 @@ impl State {
         endpoint_selector(ui, width, "Input", &mut self.selection.input,
             catalog.map(|catalog| &catalog.capture), idle, tooltips);
         setting_choice(ui, width, "Sample Rate", &mut self.selection.sample_rate,
-            |rate| format!("{rate} Hz"), &[48_000]);
+            |rate| format!("{rate} Hz"), crate::live_audio::CLIENT_SAMPLE_RATES);
         let rate = self.selection.sample_rate;
         let duration_format = localization::tr(ui.ctx(), "_ samples (_ ms)");
         let samples_format = localization::tr(ui.ctx(), "_ samples");
@@ -209,31 +209,36 @@ pub(super) fn format_buffer_size(frames: u32, rate: u32, duration_format: &str,
 
 fn setting_choice<T: Copy + PartialEq>(ui: &mut egui::Ui, width: f32, label: &str,
     selected: &mut T, text: impl Fn(T) -> String, choices: &[T]) {
+    let selected_text = localization::tr(ui.ctx(), &text(*selected)).to_owned();
+    settings_combo(ui, width, label, selected_text, |ui| {
+        for &choice in choices {
+            if settings_option(ui, &text(choice), *selected == choice).clicked() {
+                *selected = choice;
+            }
+        }
+    });
+}
+
+pub(super) fn settings_combo(ui: &mut egui::Ui, width: f32, label: &str, text: String,
+    options: impl FnOnce(&mut egui::Ui)) -> egui::Response {
     let row = settings_row(ui, width, label);
     let value = settings_value_rect(row);
-    let enabled = ui.is_enabled();
-    let mut field_ui = ui.new_child(egui::UiBuilder::new().max_rect(value));
-    field_ui.spacing_mut().interact_size.y = 24.0;
-    field_ui.spacing_mut().button_padding.y = 3.0;
-    field_ui.spacing_mut().button_padding.x = 6.0;
-    field_ui.style_mut().text_styles.insert(egui::TextStyle::Button, FontId::proportional(13.0));
-    let selected_text = settings_reference_text(localization::tr(ui.ctx(), &text(*selected)).to_owned(), enabled);
+    let mut field = ui.new_child(egui::UiBuilder::new().max_rect(value));
+    field.spacing_mut().interact_size.y = 24.0;
+    field.spacing_mut().button_padding = vec2(6.0, 3.0);
+    field.style_mut().text_styles.insert(egui::TextStyle::Button, FontId::proportional(13.0));
     let response = egui::ComboBox::from_id_salt(("audio-setting", label))
         .width(value.width()).height(200.0).truncate().icon(settings_reference_combo_icon)
-        .selected_text(selected_text)
-        .show_ui(&mut field_ui, |ui| {
+        .selected_text(settings_reference_text(text, ui.is_enabled()))
+        .show_ui(&mut field, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            ui.add_enabled_ui(enabled, |ui| {
-                for &choice in choices {
-                    let label = text(choice);
-                    if settings_option(ui, &label, *selected == choice).clicked() { *selected = choice; }
-                }
-            });
-        });
+            options(ui);
+        }).response;
     let translated_label = localization::tr(ui.ctx(), label);
-    let _ = response.response.ctx.accesskit_node_builder(response.response.id, |node| {
+    let _ = response.ctx.accesskit_node_builder(response.id, |node| {
         node.set_label(translated_label);
     });
+    response
 }
 
 fn endpoint_name(endpoint: &Endpoint) -> &str {

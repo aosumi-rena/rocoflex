@@ -14,7 +14,7 @@ impl ExclusionCause {
     pub fn into_error(self)->Error {match self {Self::Source(error)=>error,Self::Row(failure)=>failure.error}}
 }
 pub struct ExclusionCompleted {pub progress:ExclusionProgress,pub mask:Option<Row>}
-#[must_use="retain mask/scratch and SAME caller's advanced target; no replay"]
+#[must_use]
 pub struct ExclusionFailure {pub progress:ExclusionProgress,pub mask:Option<Row>,pub cause:ExclusionCause}
 
 pub fn exclude_source(target:&mut EdgeTable,rectangle:[i32;4])
@@ -72,7 +72,7 @@ pub struct ScanProgress {
     pub row:Option<usize>,pub count:Option<usize>,pub completed_rows:usize,
 }
 pub struct ScanCompleted {pub present:bool,pub progress:ScanProgress}
-#[must_use="SAME target retains dirty clear and earlier row reads"]
+#[must_use]
 pub struct ScanFailure {pub progress:ScanProgress,pub error:Error}
 pub fn scan_source(target:&mut EdgeTable)->Result<ScanCompleted,ScanFailure> {
     let mut progress=ScanProgress {stage:ScanStage::Flag,original_flag:target.source_flag_32,
@@ -109,12 +109,12 @@ impl ClipCause {
         Self::Exclusion(failure)=>failure.cause.into_error(),Self::Scan(failure)=>failure.error,
     }}
 }
-#[must_use="returned target/current are the supplied table/list, complement stays owned"]
+#[must_use]
 pub struct Completed<'t,'c> {
     pub target:&'t mut EdgeTable,pub current:&'c region::Rectangles,
     pub outside:region::Rectangles,pub progress:ClipProgress,pub scan:ScanCompleted,
 }
-#[must_use="retain SAME target, current, partial complement and stopped mask/row scratch"]
+#[must_use]
 pub struct Failure<'t,'c> {
     pub target:&'t mut EdgeTable,pub current:&'c region::Rectangles,
     pub outside:Option<region::Rectangles>,pub progress:ClipProgress,pub cause:ClipCause,

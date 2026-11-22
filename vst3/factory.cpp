@@ -1,4 +1,3 @@
-// Instantiate SDK interface IDs in exactly one translation unit.
 #define INIT_CLASS_IID
 #include "plugin.h"
 #include "controller.h"

@@ -48,11 +48,11 @@ impl Progress {
         missing_pair:false,comparison:None,clamp_comparisons:[None;2]}}
 }
 #[derive(Debug)]
-#[must_use="caller retains SAME advanced math/state and partial camera inputs; no automatic retry"]
+#[must_use]
 pub struct Failure<E> {pub progress:Progress,pub cause:E}
 
 #[derive(Debug)]
-#[must_use="retain through caller normalization failure; consume once with SAME math owner"]
+#[must_use]
 pub struct Prefix {progress:Progress,capped:u64}
 impl Prefix {
 

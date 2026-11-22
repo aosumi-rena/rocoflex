@@ -66,7 +66,7 @@ pub struct Prepared<S: Services> {
 pub struct Stopped<S: Services> { pub pending: Prepared<S>, pub fault: Fault<S::Error> }
 pub enum Fault<E> { Service(E), UnwrittenLane(usize), RequiredRange, RequiredFunction,
     RequiredArguments, AlreadyStopped }
-#[must_use = "conversion is not the setter; retain original service/parameter/range owners"]
+#[must_use]
 pub struct Converted<S: Services> { owner: Prepared<S>, value: u32 }
 
 pub struct Parts<S: Services> {

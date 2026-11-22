@@ -47,13 +47,13 @@ pub enum SourceCrtModulePublishError {
 impl SourceCrtModulePublishError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::EntryRequired { .. } => "59be59 requires actual nonzero loaded module and source-bound resolver/cache entry",
-            Self::ReceiptRequired { .. } => "59be59 actual atomic/native receipt differs from pending operation",
-            Self::ActualContinuationRequired { .. } => "59be73 actual return needs matching59be79 and saved source registers",
+            Self::EntryRequired { .. } => "Invalid module or resolver entry",
+            Self::ReceiptRequired { .. } => "Unexpected module publication result",
+            Self::ActualContinuationRequired { .. } => "Invalid cleanup return state",
         }
     }
 }
-#[must_use = "retain actual module/native/atomic resource owners and pending suffix"]
+#[must_use]
 pub struct SourceCrtModulePublishServiceFailure<E> { pub cause: E, pub pending: SourceCrtModulePublishRequest }
 pub struct SourceCrtModulePublishRejectedFailure<E> { pub cause: E, pub completed: SourceCrtModulePublishCompletion }
 

@@ -5,21 +5,21 @@ use super::crt_storage_native_return::{SourceCrtNativeRetExpectation, SourceCrtN
     SourceCrtNativeRetError, SourceCrtNativeReturnFailure, accept_source_crt_native_ret_receipt,
     validate_source_crt_native_ret};
 
-#[must_use = "retain SAME before-RET source/frame/FP/native/resource capsule and actual target owner"]
+#[must_use]
 pub struct SourceCrtQueryRetBindFailure<P, S, H, T> {
     pub owner: SourceCrtQueryBeforeRet<P, S, H>,
     pub target_owner: T,
     pub expected: SourceCrtNativeRetExpectation,
     pub actual_frame: SourceCrtNativeRetFrame,
 }
-#[must_use = "retain query owner plus independent actual caller target and pending return prefix"]
+#[must_use]
 pub struct SourceCrtQueryNativeRet<P, S, H, T> {
     owner: SourceCrtQueryBeforeRet<P, S, H>,
     target_owner: T,
     expected: SourceCrtNativeRetExpectation,
     phase: SourceCrtNativeRetPhase,
 }
-#[must_use = "retain actual returned original query/frame/FP/protected/native/physical/caller owners"]
+#[must_use]
 pub struct SourceCrtQueryReturned<P, S, H, T, N> {
     pub owner: SourceCrtQueryBeforeRet<P, S, H>,
     pub target_owner: T,
@@ -27,7 +27,7 @@ pub struct SourceCrtQueryReturned<P, S, H, T, N> {
     pub actual_retired: SourceCrtNativeRetired,
     pub actual_return: N,
 }
-#[must_use = "retain full query/target capsule and exact raw pending return phase"]
+#[must_use]
 pub struct SourceCrtQueryNativeRetParts<P, S, H, T> {
     owner: SourceCrtQueryBeforeRet<P, S, H>,
     target_owner: T,
@@ -101,13 +101,13 @@ pub struct SourceCrtQueryCallEnvelope {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SourceCrtQueryCallerReceipt { pub resume_pc: u32, pub work_rsp: u64, pub rax: u64 }
-#[must_use = "retain SAME actual helper/module/cache/native/frame/FP/caller/resources"]
+#[must_use]
 pub struct SourceCrtQueryCallerReturned<P, S, H, T, N> {
     pub owner: SourceCrtQueryReturned<P, S, H, T, N>,
     pub source_call: SourceCrtQueryCallEnvelope,
     pub actual_return: SourceCrtQueryCallerReceipt,
 }
-#[must_use = "retain entire returned query capsule on rejected original caller binding"]
+#[must_use]
 pub struct SourceCrtQueryCallerBindFailure<P, S, H, T, N> {
     pub owner: SourceCrtQueryReturned<P, S, H, T, N>,
     pub source_call: SourceCrtQueryCallEnvelope,

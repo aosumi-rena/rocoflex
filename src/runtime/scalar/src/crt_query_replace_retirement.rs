@@ -56,7 +56,7 @@ pub struct SourceCrtReplaceRetirementBindings<D, P, S, W, E> {
     pub actual_prefix: fn(&D, &P, &S, &W) -> SourceCrtNativeRetFrame,
     pub actual_saved_registers: fn(&D, &P, &S, &W) -> [u64; 4],
 }
-#[must_use = "retain genuine retirement progress and distinct wholecall/CALL/native resources"]
+#[must_use]
 pub struct SourceCrtReplaceRetirementResources<D, W, E, N> {
     pub child: D, pub whole_call: W, pub actual_entry: E, pub native_resources: N,
 }
@@ -71,7 +71,7 @@ pub struct SourceCrtReplaceRetirementEvidence {
 pub enum SourceCrtReplaceRetirementReason {
     ActualWholeCallRequired, CheckedEntryRequired, ActualPrefixRequired,
 }
-#[must_use = "retain stopped original C/H/P/S and complete rejected actual retirement resources"]
+#[must_use]
 pub struct SourceCrtReplaceRetirementRejected<D, P, S, H, W, E, N> {
     pub query: SourceCrtQueryOwned<P, S, H>,
     pub resources: SourceCrtReplaceRetirementResources<D, W, E, N>,
@@ -105,7 +105,7 @@ impl<D, P, S, H, W, E, N> SourceCrtReplaceRetirementRejected<D, P, S, H, W, E, N
     }
 }
 
-#[must_use = "whole593ffc/58d910 normal return and resource adoption remain REQUIRED"]
+#[must_use]
 pub struct SourceCrtReplaceRetirementRequired<D, P, S, H, W, E, N> {
     query: SourceCrtQueryOwned<P, S, H>,
     resources: SourceCrtReplaceRetirementResources<D, W, E, N>,
@@ -113,7 +113,7 @@ pub struct SourceCrtReplaceRetirementRequired<D, P, S, H, W, E, N> {
     evidence: SourceCrtReplaceRetirementEvidence,
 }
 
-#[must_use = "raw exit still owns outstanding593ffc and unclosed58d910/native/physical/adoption requirements"]
+#[must_use]
 pub struct SourceCrtReplaceRetirementRequiredParts<D, P, S, H, W, E, N> {
     pub query: SourceCrtQueryOwned<P, S, H>,
     pub resources: SourceCrtReplaceRetirementResources<D, W, E, N>,

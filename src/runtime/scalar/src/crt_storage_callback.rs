@@ -54,10 +54,10 @@ pub struct SourceCrtStorageCallbackError {
 }
 impl SourceCrtStorageCallbackError {
     pub fn reason(&self) -> &'static str {
-        "58a6bc actual580c24 return differs from its pending call,58a6d6 continuation or source stack pointer"
+        "Storage callback returned to the wrong caller"
     }
 }
-#[must_use = "retain actual heap/free/full-state owners and partial callback cursor"]
+#[must_use]
 pub struct SourceCrtStorageCallbackServiceFailure<E> {
     pub cause: E,
     pub pending: SourceCrtStorageFree580c24Request,

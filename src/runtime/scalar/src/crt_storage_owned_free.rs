@@ -46,7 +46,7 @@ pub enum SourceCrtStorageOwnedFreePhase {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtStorageOwnedFreeBindReason { PendingFreeRequired, AllocationBindingRequired, ActualEntryRequired }
-#[must_use = "retain callback, actual allocation, frame/FP/stack prefix, services and actual entry"]
+#[must_use]
 pub struct SourceCrtStorageOwnedFreeBindFailure<A, P, S> {
     pub reason: SourceCrtStorageOwnedFreeBindReason,
     pub callback: SourceCrtStorageCallback58a6bc,
@@ -71,24 +71,24 @@ pub enum SourceCrtStorageOwnedFreeError<E> {
 impl<E> SourceCrtStorageOwnedFreeError<E> {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::PhaseRequired { .. } => "owned580c24 composition is not at the required phase; no implicit invocation/retry",
-            Self::Primitive(_) => "borrowed580c24 primitive failed; same delete/frame/FP/resource prefix retained",
-            Self::UnexpectedNullTail => "nonnull callback allocation cannot adopt a null delete-tail completion",
-            Self::OwnerCompletionRequired => "same borrowed delete cursor still requires explicit actual owner completion",
-            Self::CompletedOwnerBindingRequired { .. } => "borrowed delete completion must retain the same actual free word, H and explicit physical disposition",
-            Self::ActualReturnNotPending { .. } => "actual callback free return is not pending after a completed same-owner delete",
-            Self::ActualPrefixReturnRequired { .. } => "actual callback return packet differs from the same owned frame/FP/resource prefix projection",
+            Self::PhaseRequired { .. } => "Invalid deallocation phase",
+            Self::Primitive(_) => "Deallocation failed",
+            Self::UnexpectedNullTail => "Non-null allocation received a null deallocation result",
+            Self::OwnerCompletionRequired => "Deallocation is still pending",
+            Self::CompletedOwnerBindingRequired { .. } => "Deallocation result refers to a different allocation",
+            Self::ActualReturnNotPending { .. } => "No deallocation callback is awaiting return",
+            Self::ActualPrefixReturnRequired { .. } => "Unexpected deallocation callback result",
             Self::CallbackReturn(error) => error.reason(),
         }
     }
 }
-#[must_use = "retain the entire owned callback/delete/frame/FP/services continuation"]
+#[must_use]
 pub struct SourceCrtStorageOwnedFreeFailure<T, E> { pub owner: T, pub cause: E }
 pub enum SourceCrtStorageOwnedFreeReceiptError<R, E> {
     NotPending { actual: R },
     Rejected { actual: R, cause: E },
 }
-#[must_use = "retain completed physical D/H/disposition and actual frame/FP/stack/services"]
+#[must_use]
 pub struct SourceCrtStorageOwnedFreeCompletion<D, P, S> {
     pub callback_before_ret: SourceCrtStorageCallbackCompletion,
     pub allocation: SourceCrtStorageActualAllocation,
@@ -109,7 +109,7 @@ pub struct SourceCrtStorageOwnedFreeParts<C, D, P, S, E> {
     pub callbacks: SourceCrtStorageDeleteCallbacks<C, D, P, S, E>,
 }
 
-#[must_use = "retain callback/delete H/frame/FP/stack/services through actual return"]
+#[must_use]
 pub struct SourceCrtStorageCallbackOwnedFree<C, D, P, S, E> {
     callback: SourceCrtStorageCallback58a6bc,
     allocation: SourceCrtStorageActualAllocation,

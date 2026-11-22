@@ -33,7 +33,7 @@ pub struct SourceCrtContextLifecycleCallBindings<P, S, E> {
     pub actual_entry: fn(&E) -> SourceCrtContextLifecycleCallEntry,
     pub owned_entry: fn(&P, &S) -> Option<SourceCrtContextLifecycleCallEntry>,
 }
-#[must_use = "retain original context/history/entry while same P/S belong to child"]
+#[must_use]
 pub struct SourceCrtContextLifecycleParent<P, S, H, E> {
     parent: Option<SourceCrtQueryContext58db7c>, history: H,
     bindings: SourceCrtQueryOwnedBindings<P, S>, actual_entry: E,
@@ -46,11 +46,11 @@ impl<P, S, H, E> SourceCrtContextLifecycleParent<P, S, H, E> {
     pub fn source_call(&self) -> SourceCrtQueryCallEnvelope { self.entry.call }
     pub fn required_target(&self) -> u64 { self.expected.required_actual_resume }
 }
-#[must_use = "retain original stopped context and same advanced child/provider/history"]
+#[must_use]
 pub struct SourceCrtContextLifecycleChild<P, S, H, CH, E> {
     child: SourceCrtQueryOwned<P, S, CH>, parent: SourceCrtContextLifecycleParent<P, S, H, E>,
 }
-#[must_use = "retain all original source/provider/entry/child owners on rejected handoff"]
+#[must_use]
 pub struct SourceCrtContextLifecycleHoldFailure<P, S, H, CH, E> {
     pub parent: SourceCrtQueryOwned<P, S, H>, pub child: SourceCrtContextLifecycleSource,
     pub child_history: CH, pub actual_entry: E,

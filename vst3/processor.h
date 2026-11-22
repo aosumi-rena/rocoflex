@@ -5,7 +5,6 @@
 
 namespace Rocoflex {
 
-// Control mutates attempts after admission drains; audio observes without allocation or locks.
 class ProcessorStatus final {
 public:
     struct Snapshot {

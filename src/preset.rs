@@ -96,8 +96,6 @@ pub(crate) struct ExperimentalCanvasMetadata {
     pub mover_enabled: bool,
 }
 
-/// Validate optional private experimental metadata without changing legacy
-/// documents or any source/embedding payloads.
 pub(crate) fn experimental_canvas_metadata(document: &Value) -> Result<Option<ExperimentalCanvasMetadata>> {
     let Some(value)=document.get("rocoflexExperimentalCanvas") else {return Ok(None);};
     if value.get("version").and_then(Value::as_u64)!=Some(1) {return Err("Unsupported experimental canvas version".into());}

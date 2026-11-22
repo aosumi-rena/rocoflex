@@ -40,7 +40,7 @@ pub(super) struct LastCall {
     pub value: Option<u32>,
 }
 
-#[must_use = "retain the callback context, pending range cursor and exact error"]
+#[must_use]
 pub(super) struct SourceRadial<C: RangeServices> {
     math: BackgroundMath,
     state: ExplicitExceptionState,
@@ -51,7 +51,7 @@ pub(super) struct SourceRadial<C: RangeServices> {
     completed_range: Option<SourceExp597c90>,
 }
 
-#[must_use = "resolve all original context, cursor and service-error owners explicitly"]
+#[must_use]
 pub(super) struct Retained<C: RangeServices> {
     pub math: BackgroundMath,
 

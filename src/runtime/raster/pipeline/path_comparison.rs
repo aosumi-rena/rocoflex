@@ -77,7 +77,7 @@ impl AppendProgress {
     }
 }
 #[derive(Debug)]
-#[must_use="retain SAME partially advanced Path and append/bounds order; no replay"]
+#[must_use]
 pub struct AppendFailure<E> {pub progress:AppendProgress,pub cause:Failure<E>}
 fn compare<S:Services>(service:&mut S,site:Site,relation:Relation,left:u32,right:u32)->Result<bool,Failure<S::Error>> {
     let request=Request {site,relation,left,right};

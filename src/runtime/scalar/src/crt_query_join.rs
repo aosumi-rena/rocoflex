@@ -8,12 +8,12 @@ use super::crt_storage_native_return::{SourceCrtNativeRetFrame, SourceCrtNativeR
 use super::crt_query_refresh::{SourceCrtQueryRefresh58e238, SourceCrtQueryRefreshProgress,
     SourceCrtQueryRefreshRequest, SourceCrtQueryRefreshReceipt, SourceCrtQueryRefreshError};
 
-#[must_use = "retain actual resolver/fresh-context/frame/FP/native/resources through original-slot store"]
+#[must_use]
 pub struct SourceCrtQueryResolverAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub source: SourceCrtQueryRefreshProgress,
 }
-#[must_use = "retain entire rejected actual resolver capsule with stopped original refresh"]
+#[must_use]
 pub struct SourceCrtQueryResolverError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub pending: SourceCrtQueryRefreshProgress,
@@ -85,12 +85,12 @@ impl SourceCrtQueryRefresh58e238 {
     }
 }
 
-#[must_use = "retain entire fresh helper/caller/protected/native/frame/FP/resource capsule"]
+#[must_use]
 pub struct SourceCrtQueryFreshContextAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub source: SourceCrtQueryResolveProgress,
 }
-#[must_use = "retain exact stopped source and entire rejected fresh-context capsule"]
+#[must_use]
 pub struct SourceCrtQueryFreshContextError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub pending: SourceCrtQueryResolveProgress,
@@ -166,12 +166,12 @@ impl SourceCrtQueryResolve5941fc {
     }
 }
 
-#[must_use = "retain original slot update/counter/retirement/native/frame/FP owners through addressed release"]
+#[must_use]
 pub struct SourceCrtQueryUpdateAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub source: SourceCrtQueryResolveProgress,
 }
-#[must_use = "retain entire rejected actual update capsule with stopped original resolver"]
+#[must_use]
 pub struct SourceCrtQueryUpdateError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub pending: SourceCrtQueryResolveProgress,

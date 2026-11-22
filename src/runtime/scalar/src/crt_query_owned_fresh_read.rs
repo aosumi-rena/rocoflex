@@ -10,7 +10,7 @@ pub struct SourceCrtQueryFreshReadBindings<P, S, R> {
     pub actual_read: fn(&R) -> SourceCrtQueryFreshReadCompleted,
     pub owned_read: fn(&P, &S) -> Option<SourceCrtQueryFreshReadCompleted>,
 }
-#[must_use = "retain actual fresh-read resource/native prefix and its independent receipt"]
+#[must_use]
 pub struct SourceCrtQueryFreshReadRecord<P, S, R> {
     pub actual: R, pub bindings: SourceCrtQueryFreshReadBindings<P, S, R>,
     pub admitted: SourceCrtQueryFreshReadCompleted,
@@ -18,7 +18,7 @@ pub struct SourceCrtQueryFreshReadRecord<P, S, R> {
 impl<P, S, R> SourceCrtQueryFreshReadRecord<P, S, R> {
     fn source(&self) -> SourceCrtQueryReceipt { (self.bindings.actual_read)(&self.actual).source }
 }
-#[must_use = "retain original stopped parent/history and entire actual advanced read failure"]
+#[must_use]
 pub enum SourceCrtQueryFreshReadFailure<P, S, H, R> {
     Prefix {
         owner: SourceCrtQueryOwned<P, S, H>, actual: R,
@@ -29,7 +29,7 @@ pub enum SourceCrtQueryFreshReadFailure<P, S, H, R> {
     Source(SourceCrtNativeReturnFailure<SourceCrtQueryOwned<P, S, H>,
         SourceCrtQueryReceiptError<SourceCrtQueryFreshReadRecord<P, S, R>>>),
 }
-#[must_use = "retain rejected read receipt/resources without repeating the read"]
+#[must_use]
 pub enum SourceCrtQueryFreshReadRejection<P, S, R> {
     Prefix { actual: R, bindings: SourceCrtQueryFreshReadBindings<P, S, R>,
         observed: SourceCrtQueryFreshReadCompleted, owned: Option<SourceCrtQueryFreshReadCompleted>,

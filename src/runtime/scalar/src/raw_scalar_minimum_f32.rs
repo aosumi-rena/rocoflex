@@ -17,9 +17,9 @@ pub enum SourceRawMinssError {
 impl SourceRawMinssError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "MINSS requires explicit Intel/MXCSR/effective capabilities",
-            Self::CoreStatusRequired { .. } => "MINSS candidate status is outside invalid-or-denormal policy",
-            Self::NaNForwardDazRequired { .. } => "MINSS first-NaN/second-subnormal forwarding under DAZ requires separate authority",
+            Self::ControlRequired { .. } => "Unsupported single-precision minimum mode",
+            Self::CoreStatusRequired { .. } => "Unsupported minimum result status",
+            Self::NaNForwardDazRequired { .. } => "Unsupported minimum for NaN and a flushed subnormal",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

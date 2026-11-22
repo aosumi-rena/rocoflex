@@ -11,8 +11,8 @@ pub enum SourceRawCvtsi2ssError {
 impl SourceRawCvtsi2ssError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "signed64 CVTSI2SS requires admitted explicit Intel/MXCSR/capabilities",
-            Self::SharedCoreRequired { .. } => "signed64 CVTSI2SS shared opcode/architecture admission required",
+            Self::ControlRequired { .. } => "Unsupported integer-to-single conversion mode",
+            Self::SharedCoreRequired { .. } => "Integer-to-single conversion unavailable",
         }
     }
 

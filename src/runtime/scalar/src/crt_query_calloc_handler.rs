@@ -25,7 +25,7 @@ pub struct SourceCrtCallocHandlerBindings<D, P, S, R> {
     pub owned_return: fn(&P, &S) -> Option<SourceCrtCallocActualHandlerReturn>,
     pub actual_return: fn(&R) -> SourceCrtCallocActualHandlerReturn,
 }
-#[must_use = "retain SAME handler/lock/native/frame/FP/whole-return resource capsule"]
+#[must_use]
 pub struct SourceCrtCallocHandlerCapsule<D, P, S, R> {
     pub handler: D,
     pub prefix: P,
@@ -33,12 +33,12 @@ pub struct SourceCrtCallocHandlerCapsule<D, P, S, R> {
     pub actual_return: R,
     pub bindings: SourceCrtCallocHandlerBindings<D, P, S, R>,
 }
-#[must_use = "retain full handler capsule through next actual heap read/attempt"]
+#[must_use]
 pub struct SourceCrtCallocHandlerAccepted<D, P, S, R> {
     pub actual: SourceCrtCallocHandlerCapsule<D, P, S, R>,
     pub source: SourceCrtQueryCallocProgress,
 }
-#[must_use = "retain rejected handler capsule with stopped original calloc; no implicit retry"]
+#[must_use]
 pub struct SourceCrtCallocHandlerError<D, P, S, R> {
     pub actual: SourceCrtCallocHandlerCapsule<D, P, S, R>,
     pub pending: SourceCrtQueryCallocProgress,

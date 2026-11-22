@@ -103,13 +103,13 @@ pub enum SourceCrtThreadStorageError {
 impl SourceCrtThreadStorageError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ContextBindingRequired { .. } => "58a4d4 actual context sentinel must bind source context+78h",
-            Self::ReceiptBindingRequired { .. } => "58a4d4/58a51c actual service/memory receipt does not match pending source operation",
-            Self::NativeSourceCompletionRequired { .. } => "58a4d4/58a51c native thunk has an outstanding source cursor; matching source and actual return are required together",
+            Self::ContextBindingRequired { .. } => "Invalid thread storage sentinel",
+            Self::ReceiptBindingRequired { .. } => "Unexpected thread storage result",
+            Self::NativeSourceCompletionRequired { .. } => "Thread storage callback is still pending",
         }
     }
 }
-#[must_use = "retain actual native resource/full-state failure with its cursor"]
+#[must_use]
 pub struct SourceCrtThreadStorageServiceFailure<E> {
     pub cause: E,
     pub pending: SourceCrtThreadStorageRequest,
@@ -135,7 +135,7 @@ pub struct SourceCrtStorageThunkBeginError {
 }
 impl SourceCrtStorageThunkBeginError {
     pub fn reason(&self) -> &'static str {
-        "storage thunk handoff requires an unfailed pending native call and exact supplied source callback/context/index addresses"
+        "Invalid thread storage callback arguments"
     }
 }
 
@@ -151,7 +151,7 @@ impl SourceCrtStorageThunkCompletionError {
     pub fn reason(&self) -> &'static str {
         match self.continuation {
             Some(error) => error.reason(),
-            None => "storage thunk completion and actual return do not bind the outstanding source call/base/resume/value",
+            None => "Unexpected thread storage callback result",
         }
     }
 }

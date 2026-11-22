@@ -366,7 +366,7 @@ impl<'p,'a,N:NumericOwner,A:Admission> MaskCompleted<'p,'a,N,A> {
         (self.graph,self.binding)
     }
 }
-#[must_use="retain SAME partial graph/table/walker AND borrowed numeric/admission owners"]
+#[must_use]
 pub struct MaskFailure<'p,'a,N:NumericOwner,A:Admission> {
 
     graph:super::pixels::path_mask::Failure<'p,Error<A::Error,N::Error>>,
@@ -389,7 +389,7 @@ impl TerminalBinding {
     pub fn last_attempt(&self)->Option<&Attempt> {self.last.as_ref()}
     pub fn stopped(&self)->bool {self.stopped}
 }
-#[must_use="retain actual Path/numeric/admission owners with terminal graph"]
+#[must_use]
 pub struct TerminalMaskFailure<E> {
     graph:super::pixels::path_mask::TerminalFailure<E>,binding:TerminalBinding,
 }

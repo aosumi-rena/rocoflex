@@ -1,5 +1,4 @@
-﻿//! MIDI 1.0 note and controller edge matching for shortcut gestures.
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all="camelCase")]

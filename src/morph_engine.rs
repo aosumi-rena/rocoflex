@@ -13,6 +13,7 @@ pub(crate) struct SourceFeatures<'a> {
 }
 
 pub(crate) struct MorphEngine {
+    pub(super) r2_vocoder:bool,
     decoder:Decoder, synthesis:Option<SynthesisBackend>,pipeline:Option<Pipeline>,
     feature_transform:Option<FeatureTransform>,
     synthesis_rows:Vec<Row>,submitted:u64,
@@ -46,8 +47,7 @@ impl MorphEngine {
     }
 
     pub(crate) fn new_legacy(analysis:&[u8],vocoder:&[u8],seed:u32,
-        selection:SynthesisSelection)->Result<Self> {
-        let profile=crate::prepare_quality::PrepareProfile::Highest;
+        selection:SynthesisSelection,profile:crate::prepare_quality::PrepareProfile)->Result<Self> {
         let decoder=Decoder::from_dnni(analysis,profile.decoder_child(),0x853c_49e6_748f_ea9b_u64)?;
         Self::with_synthesis(decoder,SynthesisBackend::legacy(vocoder,seed)?,None,selection)
     }
@@ -61,11 +61,13 @@ impl MorphEngine {
             Ok(super::count_plan::EngineCounts {decoder:decoder.prepared_count_inputs()?,
                 coefficient_right_rows,policy_version})
         })();
+        let r2_vocoder=matches!(&synthesis,SynthesisBackend::Custom(model)
+            if matches!(model.as_ref(),super::custom_vocoder::CustomVocoder::R2(_)));
         let (synthesis,pipeline)=match Pipeline::prepare(synthesis,selection)? {
             Prepared::Serial(owner)=>(Some(owner),None),
             Prepared::Worker(worker)=>(None,Some(worker)),
         };
-        Ok(Self {decoder,feature_transform,synthesis,pipeline,count_inputs,
+        Ok(Self {decoder,feature_transform,synthesis,pipeline,count_inputs,r2_vocoder,
             synthesis_rows:Vec::new(),submitted:0,
             decoded_frames:Vec::new(),accepted:0,decoded:0,failure:None})
     }

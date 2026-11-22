@@ -5,7 +5,7 @@ pub enum MathCause { Source(Error), RequiredTrig }
 #[derive(Clone, Copy, Debug)]
 pub enum MathPhase { Inputs, EndSin(u32), EndCos(u32), StartSin(u32), StartCos(u32), Store(usize), Complete }
 #[derive(Debug)]
-#[must_use = "retain the partial planar buffer, trace and caller math owner"]
+#[must_use]
 pub struct MathFailure {
     pub cause: MathCause, pub partial: Output, pub record: usize, pub phase: MathPhase,
 }

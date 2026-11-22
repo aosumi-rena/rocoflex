@@ -1,4 +1,3 @@
-// Included once inside controller.cpp's Rocoflex namespace.
 namespace { constexpr ProgramListID kFactoryPresetListId = 1886548852; }
 
 int32 PLUGIN_API Controller::getUnitCount() { return 1; }

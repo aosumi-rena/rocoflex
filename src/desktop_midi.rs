@@ -1,4 +1,3 @@
-//! Windows MIDI device selection and editor-side delivery.
 use super::*;
 use super::midi_port::{self, Device, DeviceKey, Event, Input, Worker};
 use std::{collections::VecDeque, sync::{Arc, atomic::Ordering}, thread};
@@ -185,18 +184,11 @@ impl State {
         inputs
     }
     pub fn ui(&mut self, ui: &mut egui::Ui, width: f32) {
-        use super::controls::{settings_row, settings_value_rect, settings_option, settings_option_raw,
-            settings_reference_combo_icon, settings_reference_text};
+        use super::controls::{settings_option, settings_option_raw};
         if !self.catalog_attempted { self.refresh(ui.ctx()); }
-        let row = settings_row(ui, width, "MIDI Control Device");
-        let value = settings_value_rect(row);
-        let text = self.selected.as_ref().map_or_else(|| localization::tr(ui.ctx(), "None"), |key| key.name.as_str());
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(value));
-        child.spacing_mut().interact_size.y = 24.0;
-        let device_list = egui::ComboBox::from_id_salt("midi-input-device").width(value.width()).height(200.0)
-            .truncate().icon(settings_reference_combo_icon)
-            .selected_text(settings_reference_text(text.to_owned(), child.is_enabled()))
-            .show_ui(&mut child, |ui| {
+        let text = self.selected.as_ref()
+            .map_or_else(|| localization::tr(ui.ctx(), "None").to_owned(), |key| key.name.clone());
+        let device_list = super::audio_devices::settings_combo(ui, width, "MIDI Control Device", text, |ui| {
                 if settings_option(ui, "None", self.selected.is_none()).clicked() && ui.ctx().current_pass_index() == 0 { self.selected = None; }
                 if let Some(devices) = &self.devices {
                     for device in devices {
@@ -213,6 +205,6 @@ impl State {
                     }
                 }
             });
-        if device_list.response.clicked() && ui.ctx().current_pass_index() == 0 { self.refresh(ui.ctx()); }
+        if device_list.clicked() && ui.ctx().current_pass_index() == 0 { self.refresh(ui.ctx()); }
     }
 }

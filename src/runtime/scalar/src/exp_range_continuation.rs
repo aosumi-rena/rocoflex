@@ -101,16 +101,16 @@ pub enum SourceExpRangeError {
 impl SourceExpRangeError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::RangeEntryRequired { .. } => "597c90 requires an actual exp range-helper entry",
-            Self::InvalidRangeEntry { .. } => "597c90 range plan does not match retained exp entry dispatch",
-            Self::UnexpectedReceipt { .. } => "597c90 actual completion does not match its pending service",
-            Self::StatusReceiptRequired { .. } => "596084 receipt needs same request, source state and errno preservation",
-            Self::UnmaskedStatusHelperRequired { .. } => "596150 non-EAX1 status route requires actual59a288 continuation",
-            Self::PresenceReadBindingRequired { .. } => "590b80 encoded-word receipt does not match fresh security read",
-            Self::ErrnoReceiptRequired { .. } => "599f64 actual errno-write receipt does not match request/state",
-            Self::OuterReturnBindingRequired { .. } => "596150 outer return receipt has different source call arguments",
-            Self::CookieFailureContinuationRequired { .. } => "561c40 actual cookie failure continuation required",
-            Self::AbsentReturnStateRequired { .. } => "596150 absent fast tail must preserve actual post-accessor logical state",
+            Self::RangeEntryRequired { .. } => "Missing exponential range error",
+            Self::InvalidRangeEntry { .. } => "Range handler does not match the exponential operation",
+            Self::UnexpectedReceipt { .. } => "Unexpected range handler result",
+            Self::StatusReceiptRequired { .. } => "Range handler changed the saved error state",
+            Self::UnmaskedStatusHelperRequired { .. } => "Range error status handler required",
+            Self::PresenceReadBindingRequired { .. } => "Encoded value does not match the current value",
+            Self::ErrnoReceiptRequired { .. } => "Unexpected error number after write",
+            Self::OuterReturnBindingRequired { .. } => "Range handler returned to a different caller",
+            Self::CookieFailureContinuationRequired { .. } => "Stack check failure handler required",
+            Self::AbsentReturnStateRequired { .. } => "Range handler changed the floating-point state",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

@@ -17,8 +17,8 @@ pub enum SourceRawCvtsd2ssError {
 impl SourceRawCvtsd2ssError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "CVTSD2SS requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::CandidateRequired { .. } => "CVTSD2SS candidate/exception continuation is not closed",
+            Self::ControlRequired { .. } => "Unsupported double-to-single conversion mode",
+            Self::CandidateRequired { .. } => "Double-to-single conversion incomplete",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

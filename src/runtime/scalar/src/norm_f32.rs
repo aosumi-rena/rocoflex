@@ -89,10 +89,10 @@ pub struct SourceNormCallReceipt {
 impl SourceNormF32Error {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "579824 explicit arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "579824 state is not RNE/all-masked/gradual",
-            Self::NonfinitePairRequired { .. } => "579824 nonfinite pair requires its separate source path",
-            Self::OverflowCallbackRequired(_) => "579824 root exceeds F32 maximum; actual596150 continuation required",
+            Self::ArchitectureNotClosed => "Unsupported norm architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::NonfinitePairRequired { .. } => "Nonfinite norm input",
+            Self::OverflowCallbackRequired(_) => "Norm exceeds the single-precision range",
             Self::Arithmetic(error) => error.reason(),
             Self::SquareRoot { error, .. } => error.reason(),
         }
@@ -191,15 +191,15 @@ impl SourceNorm579824 {
         let y = prefix.arithmetic_second;
         let mut a = Arithmetic { state: prefix.state };
         self.begin_step(SourceNormStage::SecondSquare, SourceNormStepOperands::BinaryF64 { left: y, right: y }, a.state);
-        let yy = a.multiply("579898/second square MULSD", y, y).map_err(SourceNormF32Error::Arithmetic);
+        let yy = a.multiply("second square MULSD", y, y).map_err(SourceNormF32Error::Arithmetic);
         self.finish_step(yy.map(SourceNormStepResult::F64Bits), a.state);
         let yy = yy?;
         self.begin_step(SourceNormStage::FirstSquare, SourceNormStepOperands::BinaryF64 { left: x, right: x }, a.state);
-        let xx = a.multiply("57989c/first square MULSD", x, x).map_err(SourceNormF32Error::Arithmetic);
+        let xx = a.multiply("first square MULSD", x, x).map_err(SourceNormF32Error::Arithmetic);
         self.finish_step(xx.map(SourceNormStepResult::F64Bits), a.state);
         let xx = xx?;
         self.begin_step(SourceNormStage::Sum, SourceNormStepOperands::BinaryF64 { left: yy, right: xx }, a.state);
-        let sum = a.add("5798a0/squares ADDSD", yy, xx).map_err(SourceNormF32Error::Arithmetic);
+        let sum = a.add("squares ADDSD", yy, xx).map_err(SourceNormF32Error::Arithmetic);
         self.finish_step(sum.map(SourceNormStepResult::F64Bits), a.state);
         let sum = sum?;
         self.begin_step(SourceNormStage::SquareRoot, SourceNormStepOperands::F64 { source: sum }, a.state);

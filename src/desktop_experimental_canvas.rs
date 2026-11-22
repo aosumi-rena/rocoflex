@@ -1,5 +1,4 @@
-﻿//! Experimental canvas controls and rendering.
-use super::*;
+﻿use super::*;
 use super::experimental_math::{self as math, V3};
 use std::sync::Arc;
 
@@ -116,7 +115,6 @@ impl State {
 }
 impl DesktopApp {
     pub(crate) fn set_experimental_navigation_batch(&mut self,allowed:bool) {self.experimental.navigation_batch_allowed=allowed;}
-    /// Also consumed by keyboard binding dispatch. Modal and text focus always win.
     pub(super) fn experimental_canvas_navigation_active(&self, ctx: &egui::Context) -> bool {
         self.experimental.enabled && !self.layout_blocked() && !self.settings
             && self.editor.is_none() && !self.color_picker && self.error.is_none()
@@ -196,8 +194,6 @@ impl DesktopApp {
             else {self.preset.transformation};
         let previous_anchor=self.experimental.depth_anchor;
         let (z,has_depth,anchor)=math::depth(&reduced,basis,previous_anchor).map_err(str::to_owned)?;
-        // Rendering/restore never edits the document. An initially selected or
-        // replacement anchor stays transient until an explicit user action.
         if anchor!=previous_anchor {self.experimental.depth_anchor=anchor;}
         let mut cursor=0; let mut sources=Vec::new();
         for (owner,source) in self.preset.sources.iter().enumerate() {
@@ -240,7 +236,6 @@ impl DesktopApp {
         {
             return self.probe_changed(Probe { position: Point::new(value[0], value[1]), ..self.probe });
         }
-        // Legacy presets may have XY coordinates outside the 3D navigation box.
         self.experimental_update_probe(value, false)
     }
     fn experimental_update_probe(&mut self, value: V3, remember: bool) -> bool {
@@ -249,7 +244,7 @@ impl DesktopApp {
         let z_changed=self.experimental.enabled && value[2].to_bits()!=self.experimental.z.to_bits();
         if !xy_changed && !z_changed {return true;}
         let previous=remember.then(||self.capture_undo());
-        // Z-only motion must not restart the 2D controller's reload loop.
+        // Z-only movement leaves the 2D mix intact.
         if xy_changed && !self.probe_changed(Probe {position:Point::new(value[0],value[1]),..self.probe}) {return false;}
         self.experimental.z=value[2];
         if self.experimental.enabled {
@@ -355,7 +350,6 @@ impl DesktopApp {
                     if self.experimental_set_probe(coordinates,true) {self.reset_probe_mover();}
                     else {self.layout_status=Some(localization::tr(ctx,"Invalid probe coordinates.").into());}
                 } else if !editing && position!=self.experimental.mover_origin {
-                    // The coordinate editor just released ownership of the draft.
                     self.reset_probe_mover();
                     ctx.request_repaint();
                 }
@@ -494,8 +488,7 @@ impl DesktopApp {
             && ctx.layer_id_at(p).is_none_or(|layer|layer==response.layer_id);
         self.experimental.hovered=pointer.filter(|p|admits(*p,&self.overlay_rects)).and_then(|p|hit_axis(current,camera,size,local(p)));
         let down=ctx.input(|i|i.pointer.primary_down());
-        // A complete press/move/release can arrive in one input frame. egui
-        // does not report it as a drag, so use the checked raw event sequence.
+        // egui can deliver a complete drag in one frame.
         let completed=if self.experimental.axis_drag.is_none() && !down {
             ctx.input(|i|canvas_gesture::completed_primary_drag(&i.raw.events,cancellations))
                 .filter(|gesture|admits(gesture.press,&self.overlay_rects))
@@ -509,8 +502,6 @@ impl DesktopApp {
                 }
             }
         } else if self.experimental.axis_drag.is_none() && down && response.is_pointer_button_down_on() {
-            // Accept one actual down in this batch, never a later hover position
-            // or an ambiguous release/repress sequence.
             let press=ctx.input(|i| {
                 let mut found=None;
                 for event in &i.raw.events {
@@ -533,8 +524,6 @@ impl DesktopApp {
             }
         }
         if let Some(mut drag)=self.experimental.axis_drag.take() {
-            // A resize changes the projection; retire the old owner instead of
-            // applying a stale pointer transform to the new viewport.
             if drag.rect==rect {
                 let at=if down && !axis_terminal {pointer} else {
                     ctx.input(|i|canvas_gesture::armed_primary_release(&i.raw.events,cancellations))
@@ -726,7 +715,6 @@ fn paint_probe_sphere(painter:&egui::Painter, center:Pos2, radius:f32, tint:[u8;
     }
     painter.add(egui::Shape::mesh(mesh));
 }
-/// Reuse the standard Settings row/checkbox while keeping the label clickable.
 fn experimental_check_row(ui:&mut egui::Ui,width:f32,id:&'static str,label:&str,
     current:&mut bool,first:bool)->bool {
     let row=controls::settings_row(ui,width,label);

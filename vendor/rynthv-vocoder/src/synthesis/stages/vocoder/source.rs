@@ -1,0 +1,56 @@
+use crate::synthesis::{
+    inference::Sequence,
+    voice::{Result, VoiceError},
+};
+
+use super::{condition::CHANNELS, excitation::ExcitationFrame};
+
+pub fn excitation_frames(
+    physical: &Sequence,
+    shape_logits: &Sequence,
+    shape_controls: &[f32],
+) -> Result<Vec<ExcitationFrame>> {
+    physical.validate()?;
+    shape_logits.validate()?;
+    if physical.channels != CHANNELS
+        || shape_logits.channels != 1
+        || shape_logits.frames != physical.frames
+        || shape_controls.len() != physical.frames
+    {
+        return Err(VoiceError::new(
+            "Vocoder LF source inputs have different frame shapes",
+        ));
+    }
+    physical
+        .values
+        .as_chunks::<CHANNELS>()
+        .0
+        .iter()
+        .zip(&shape_logits.values)
+        .zip(shape_controls)
+        .map(|((frame, &logit), &control)| {
+            if !logit.is_finite()
+                || !control.is_finite()
+                || !frame[0].is_finite()
+                || !frame[1].is_finite()
+                || frame[1] <= 0.0
+            {
+                return Err(VoiceError::new(
+                    "Vocoder LF source inputs are not finite or F0 is nonpositive",
+                ));
+            }
+            let mut shape = (0.1 + 2.9 / (1.0 + (-logit).exp())).clamp(0.1, 3.0);
+            shape += control
+                * if control > 0.0 {
+                    3.0 - shape
+                } else {
+                    shape - 0.1
+                };
+            Ok(ExcitationFrame {
+                f0_hz: frame[1],
+                shape: shape.clamp(0.1, 3.0),
+                voiced: frame[0] >= 0.5,
+            })
+        })
+        .collect()
+}

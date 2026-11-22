@@ -8,7 +8,7 @@ pub enum MathCause { Source(Error), RequiredTrig(TrigAttempt), ArithmeticMode(u3
 pub enum MathPhase { Inputs, State, Find, Trig(TrigAttempt), Ratio(u32),
     Insert(usize), Remove(usize), Complete }
 #[derive(Debug)]
-#[must_use = "retain advanced insertion records and required math owner; no replay"]
+#[must_use]
 pub struct MathFailure {
     pub cause: MathCause,
     pub partial: Output,

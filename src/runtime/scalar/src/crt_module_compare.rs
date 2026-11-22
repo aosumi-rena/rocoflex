@@ -54,14 +54,14 @@ pub enum SourceCrtModuleCompareError {
 impl SourceCrtModuleCompareError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::BoundSevenWordCallRequired { .. } => "593e68 module suffix requires the exact bound59be1c seven-word call",
-            Self::ReceiptRequired { .. } => "593e68 actual fresh word receipt differs from pending source read",
-            Self::ActualLiveContinuationRequired { .. } => "593e68 actual read prefix changed source live control registers/resume point",
-            Self::ReadStorageContinuationRequired { .. } => "593e68 bounded seven-word read-prefix storage requires continuation",
+            Self::BoundSevenWordCallRequired { .. } => "Invalid module comparison arguments",
+            Self::ReceiptRequired { .. } => "Unexpected module comparison value",
+            Self::ActualLiveContinuationRequired { .. } => "Module comparison changed the saved state",
+            Self::ReadStorageContinuationRequired { .. } => "Module comparison buffer is full",
         }
     }
 }
-#[must_use = "retain actual memory/frame/fault/full-state owner and partial fresh-read cursor"]
+#[must_use]
 pub struct SourceCrtModuleCompareServiceFailure<E> { pub cause: E, pub pending: SourceCrtModuleCompareRead }
 pub struct SourceCrtModuleCompareRejectedFailure<E> { pub cause: E, pub completed: SourceCrtModuleCompareCompletion }
 

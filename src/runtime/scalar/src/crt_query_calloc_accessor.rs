@@ -30,19 +30,19 @@ pub struct SourceCrtCallocAccessorBindings<D, P, S, N> {
     pub actual_ret: fn(&N) -> SourceCrtNativeRetObservation,
     pub owned_ret: fn(&D, &P, &S) -> Option<SourceCrtNativeRetObservation>,
 }
-#[must_use = "retain SAME accessor provider/context/storage/rawRET/frame/FP/native owners"]
+#[must_use]
 pub struct SourceCrtCallocAccessorCapsule<D, P, S, N> {
     pub accessor: D, pub prefix: P, pub services: S, pub actual_ret: N,
     pub bindings: SourceCrtCallocAccessorBindings<D, P, S, N>,
 }
-#[must_use = "retain stopped original calloc and rejected actual accessor resources"]
+#[must_use]
 pub struct SourceCrtCallocAccessorFailure<D, P, S, N> {
     pub calloc: SourceCrtQueryCalloc58f074, pub actual: SourceCrtCallocAccessorCapsule<D, P, S, N>,
     pub description: SourceCrtCallocAccessorDescription,
     pub observed_ret: SourceCrtNativeRetObservation, pub owned_ret: Option<SourceCrtNativeRetObservation>,
     pub actual_frame: SourceCrtNativeRetFrame, pub actual_rbx: u64, pub source: Option<SourceCrtQueryCallocError>,
 }
-#[must_use = "retain original advanced calloc and whole accessor capsule through actual DWORD12 write"]
+#[must_use]
 pub struct SourceCrtCallocAccessorAccepted<D, P, S, N> {
     calloc: SourceCrtQueryCalloc58f074,
     pub actual: SourceCrtCallocAccessorCapsule<D, P, S, N>,
@@ -50,7 +50,7 @@ pub struct SourceCrtCallocAccessorAccepted<D, P, S, N> {
     retired: SourceCrtNativeRetired,
     source: SourceCrtQueryCallocProgress,
 }
-#[must_use = "retain actual accessor/context/native/rawRET owners with continuing query P/S"]
+#[must_use]
 pub struct SourceCrtCallocAccessorHistory<D, P, S, N> {
     pub accessor: D, pub actual_ret: N, pub description: SourceCrtCallocAccessorDescription,
     pub retired: SourceCrtNativeRetired, pub bindings: SourceCrtCallocAccessorBindings<D, P, S, N>,

@@ -10,18 +10,18 @@ use super::crt_query_return::{SourceCrtQueryCallerReturned, SourceCrtQueryCallEn
 use super::crt_storage_native_return::{SourceCrtNativeRetFrame, SourceCrtNativeRetObservation,
     validate_source_crt_native_ret};
 
-#[must_use = "retain SAME actual allocation disposition, native/frame/FP and caller resources"]
+#[must_use]
 pub struct SourceCrtQueryCallocAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub source: SourceCrtQueryContextProgress,
 }
 
-#[must_use = "retain actual fresh mode read/native return/frame/FP/caller owners"]
+#[must_use]
 pub struct SourceCrtQueryModeAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub source: SourceCrtQueryCallocProgress,
 }
-#[must_use = "retain rejected mode capsule with stopped original calloc"]
+#[must_use]
 pub struct SourceCrtQueryModeJoinError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub pending: SourceCrtQueryCallocProgress,
@@ -88,7 +88,7 @@ impl SourceCrtQueryCalloc58f074 {
         }
     }
 }
-#[must_use = "retain entire rejected calloc capsule and stopped original context cursor"]
+#[must_use]
 pub struct SourceCrtQueryCallocJoinError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>,
     pub pending: SourceCrtQueryContextProgress,

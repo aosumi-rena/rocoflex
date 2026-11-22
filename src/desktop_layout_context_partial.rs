@@ -13,7 +13,7 @@ pub struct RejectedContext { pub context: GeometryContext, pub error: Error }
 pub struct CompletionFailure { pub pending: PreparedPartialContext, pub error: Error }
 pub struct PromotedContext { pub controller: ContextController, pub binding: source_partial::DispatchBinding }
 
-#[must_use = "Keep accepted Source/document and old partial state while context/probe is pending."]
+#[must_use]
 pub struct PreparedPartialContext {
     before: source_partial::PartialController,
     source: Option<Source>, route: Route, cache: CacheBinding,

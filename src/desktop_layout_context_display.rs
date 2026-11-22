@@ -17,7 +17,7 @@ fn legacy_display_admission(sources: &[Source], basis: [f32;8]) -> Result<usize,
         Source::Trajectory { reduced, .. } if !(2..48).contains(&reduced.len()))) { return Err(Error::Domain); }
     super::domain(sources, basis)
 }
-#[must_use = "Own this stage with the accepted document before resolving context."]
+#[must_use]
 pub struct PreparedDisplayContext {
     input: Input, phase: Phase, request: Option<ContextRequest>, issue: Option<Error>,
     prefix_started: bool, provider_attempted: bool,

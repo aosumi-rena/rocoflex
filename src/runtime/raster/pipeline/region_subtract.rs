@@ -7,7 +7,7 @@ pub struct Progress {
     pub entry_before:Option<[i32;4]>,pub completed_visits:usize,pub inserted:usize,pub removed:usize,
     pub capacity_before:i32,pub capacity_after:i32,
 }
-#[must_use="SAME caller retains advanced list; stopped cursor is not replay permission"]
+#[must_use]
 pub struct Failure {pub progress:Progress,pub error:Error}
 pub fn run_source(target:&mut Rectangles,cut:[i32;4])->Result<Progress,Failure> {
     let mut progress=Progress {step:Step::Read,cut,cursor:target.entries.len(),index:None,entry_before:None,

@@ -67,7 +67,7 @@ pub enum MultiplyOutcome<C> {
 }
 #[derive(Debug)]
 pub enum RadialCause<E> { NormRequired([f32; 2]), Lookup(lookup::Error), Service(E) }
-#[must_use = "retain prepared gradient and partial lookup alongside advanced tensors"]
+#[must_use]
 pub struct RadialFailure<E> {
     pub cause: RadialCause<E>, pub prepared: gradient::PreparedRender, pub lookup: lookup::Slot,
 }

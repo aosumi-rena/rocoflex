@@ -45,9 +45,9 @@ pub struct Progress<I> {
     pub bulk_history:Option<bulk::Progress<I>>,
     pub helper_history:Option<sample::helper::Progress<I>>,
 }
-#[must_use = "retain SAME advanced shader Frame and all prior packets"]
+#[must_use]
 pub struct State<F,I,R,O> {pub shader:super::State<F,I,R,O>,pub progress:Progress<I>}
-#[must_use = "next actual source continuation remains REQUIRED"]
+#[must_use]
 pub struct Required<F,I,R,O> {pub state:State<F,I,R,O>,pub next_rva:u32}
 #[must_use]
 pub struct Failure<F,I,R,O,E> {pub state:State<F,I,R,O>,pub cause:Cause<E>}

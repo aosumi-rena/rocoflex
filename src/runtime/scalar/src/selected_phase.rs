@@ -727,7 +727,7 @@ pub(super) fn cpu0_cosine_large_head_with_explicit_state(
     if !(0x411e_8480_0000_0000..INFINITY).contains(&bits) {
         return Err(PhaseError::OutsidePositiveReductionDomain);
     }
-    large_head_product_with_explicit_state(bits, advanced, "597c83/CPU0 cosine head MULSD")
+    large_head_product_with_explicit_state(bits, advanced, "CPU0 cosine head MULSD")
 }
 
 pub(super) fn cpu0_sine_large_head_with_explicit_state(
@@ -736,7 +736,7 @@ pub(super) fn cpu0_sine_large_head_with_explicit_state(
     if !(0x416e_8480_0000_0000..INFINITY).contains(&bits) {
         return Err(PhaseError::OutsidePositiveReductionDomain);
     }
-    large_head_product_with_explicit_state(bits, advanced, "59bace/CPU0 sine head MULSD")
+    large_head_product_with_explicit_state(bits, advanced, "CPU0 sine head MULSD")
 }
 
 fn large_head_product_with_explicit_state(bits: u64, state: ExplicitExceptionState,

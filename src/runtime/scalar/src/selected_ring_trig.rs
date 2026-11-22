@@ -20,7 +20,7 @@ pub enum SourceFiniteCosineWordZeroError {
 impl SourceFiniteCosineWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::NonFiniteInput { .. } => "CPU0 finite cosine requires non-CRT finite F32 input",
+            Self::NonFiniteInput { .. } => "Expected a finite cosine input",
             Self::Short(error) => error.reason(),
             Self::Large(error) => error.reason(),
         }
@@ -76,7 +76,7 @@ pub(super) fn finite_sine_word_zero_graph(leaf: &SourceFiniteCosineWordZero, bit
     let mut a = Arithmetic { state: advanced };
 
     let absolute = if bits >> 31 != 0 {
-        a.subtract("587011/large sine absolute zero SUBSD", 0, wide)
+        a.subtract("large sine absolute zero SUBSD", 0, wide)
             .map_err(|error| E::LargeSineKernel(SourceRingTrigError::Arithmetic(error)))?
     } else { magnitude };
     let (quadrant, head, advanced) = super::selected_phase::cpu0_sine_large_head_with_explicit_state(absolute, a.state)
@@ -86,7 +86,7 @@ pub(super) fn finite_sine_word_zero_graph(leaf: &SourceFiniteCosineWordZero, bit
         .map_err(|error| E::LargeSineKernel(SourceRingTrigError::Arithmetic(error)))?;
 
     if (quadrant & 2 != 0) ^ (bits >> 31 != 0) {
-        result = a.subtract("587252/large sine quadrant zero SUBSD", 0, result)
+        result = a.subtract("large sine quadrant zero SUBSD", 0, result)
             .map_err(|error| E::LargeSineKernel(SourceRingTrigError::Arithmetic(error)))?;
     }
     narrow_source(result, a.state).map_err(E::LargeSineKernel)
@@ -103,10 +103,10 @@ pub enum SourceLargeCosineWordZeroError {
 impl SourceLargeCosineWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::OutsideLargeDomain { .. } => "CPU0 large cosine requires finite magnitude reaching actual602810 reduction threshold",
+            Self::OutsideLargeDomain { .. } => "Cosine magnitude below the large-angle threshold",
             Self::Source(error) => error.reason(),
-            Self::Reduction(super::selected_phase::PhaseError::ConsumedUndefinedBitScan) => "CPU0 cosine head consumed undefined zero BSR result",
-            Self::Reduction(_) => "CPU0 cosine head arithmetic/source continuation required",
+            Self::Reduction(super::selected_phase::PhaseError::ConsumedUndefinedBitScan) => "Cosine range reduction cannot bit-scan zero",
+            Self::Reduction(_) => "Cosine range reduction incomplete",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {
@@ -151,7 +151,7 @@ impl SourceLargeCosineWordZero {
         let mut result = separate_kernel(&mut a, head, quadrant & 1 != 0)
             .map_err(|error| E::Source(SourceRingTrigError::Arithmetic(error)))?;
         if (quadrant + 1) & 2 != 0 {
-            result = a.subtract("57e5e0/CPU0 large cosine zero SUBSD", 0, result)
+            result = a.subtract("CPU0 large cosine zero SUBSD", 0, result)
                 .map_err(|error| E::Source(SourceRingTrigError::Arithmetic(error)))?;
         }
         narrow_source(result, a.state).map_err(E::Source)
@@ -173,13 +173,13 @@ pub enum SourceRingTrigError {
 impl SourceRingTrigError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::WordZeroRequired { .. } => "57e330/586ed0 ring SSE body requires explicitly supplied word zero",
-            Self::ArchitectureNotClosed => "ring arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "ring source state is not RNE/all-masked/gradual",
-            Self::OutsideRingDomain { .. } => "ring trig input requires +zero or positive normal [1/8,8)",
-            Self::OutsideFloor0CosineDomain { .. } => "word-zero floor0 cosine requires finite F32 magnitude below8, including signed zeros/subnormals",
-            Self::OutsideProjectionDomain { .. } => "word-zero projection trig requires signed zero or normal magnitude [2^-23,8)",
-            Self::CountContinuationRequired { .. } => "ring bounded CVTTPD2DQ continuation required",
+            Self::WordZeroRequired { .. } => "Expected the baseline trigonometric mode",
+            Self::ArchitectureNotClosed => "Unsupported trigonometric architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::OutsideRingDomain { .. } => "Angle outside the supported range",
+            Self::OutsideFloor0CosineDomain { .. } => "Expected a finite cosine magnitude below 8",
+            Self::OutsideProjectionDomain { .. } => "Projection angle outside the supported range",
+            Self::CountContinuationRequired { .. } => "Trigonometric index conversion incomplete",
             Self::Arithmetic(error) => error.reason(),
         }
     }
@@ -238,7 +238,7 @@ pub enum SourceCoefficientTrigWordZeroShortError {
 impl SourceCoefficientTrigWordZeroShortError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::OutsideShortDomain { .. } => "word-zero coefficient trig requires finite F32 magnitude below8, including signed zeros/subnormals",
+            Self::OutsideShortDomain { .. } => "Expected a finite coefficient angle below 8",
             Self::Source(error) => error.reason(),
         }
     }
@@ -355,13 +355,13 @@ impl SourceRingTrigWordZero {
         }
         if sine && magnitude < 0x3f80_0000_0000_0000 {
 
-            let square = a.multiply("586f7c/small sine square MULSD", wide, wide)
+            let square = a.multiply("small sine square MULSD", wide, wide)
                 .map_err(SourceRingTrigError::Arithmetic)?;
-            let cube = a.multiply("586f80/small sine cube MULSD", square, wide)
+            let cube = a.multiply("small sine cube MULSD", square, wide)
                 .map_err(SourceRingTrigError::Arithmetic)?;
-            let correction = a.multiply("586f84/small sine correction MULSD", cube, THIRD_FACTORIAL)
+            let correction = a.multiply("small sine correction MULSD", cube, THIRD_FACTORIAL)
                 .map_err(SourceRingTrigError::Arithmetic)?;
-            let result = a.subtract("586f88/small sine result SUBSD", wide, correction)
+            let result = a.subtract("small sine result SUBSD", wide, correction)
                 .map_err(SourceRingTrigError::Arithmetic)?;
             return narrow_source(result, a.state);
         }
@@ -371,13 +371,13 @@ impl SourceRingTrigWordZero {
         if magnitude <= DIRECT_LIMIT {
             if !sine {
 
-                let _ = a.multiply("57e38b/discarded direct cosine square", wide, wide)
+                let _ = a.multiply("discarded direct cosine square", wide, wide)
                     .map_err(SourceRingTrigError::Arithmetic)?;
             }
         } else {
 
             let absolute = if sine && bits >> 31 != 0 {
-                a.subtract("587011/negative sine absolute zero SUBSD", 0, wide)
+                a.subtract("negative sine absolute zero SUBSD", 0, wide)
                     .map_err(SourceRingTrigError::Arithmetic)?
             } else { magnitude };
             let reduced = reduce(&mut a, absolute, false).map_err(|error| match error {

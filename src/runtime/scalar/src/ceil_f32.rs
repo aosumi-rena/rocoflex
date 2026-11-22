@@ -34,10 +34,10 @@ pub struct SourceCeilCallReceipt {
 impl SourceCeilF32Error {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "57dd28 requires explicit Intel instruction semantics",
-            Self::SharedCore { .. } => "57dda6 shared legacy ADDSS service required",
-            Self::LogicalStateRequired { .. } => "57dd28 returned scalar state is outside logical admission",
-            Self::TrapRequired { .. } => "57dda6 actual scalar trap continuation required",
+            Self::ArchitectureNotClosed => "Unsupported rounding architecture",
+            Self::SharedCore { .. } => "Scalar addition unavailable",
+            Self::LogicalStateRequired { .. } => "Invalid rounding result state",
+            Self::TrapRequired { .. } => "Rounding trap handler required",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

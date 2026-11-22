@@ -19,9 +19,9 @@ pub enum SourceRawSubsdError {
 impl SourceRawSubsdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "SUBSD requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::AlignmentRequired { .. } => "SUBSD exact aligned continuation is required",
-            Self::CandidateRequired { .. } => "SUBSD candidate/exception continuation is not closed",
+            Self::ControlRequired { .. } => "Unsupported double subtraction mode",
+            Self::AlignmentRequired { .. } => "Aligned double subtraction unavailable",
+            Self::CandidateRequired { .. } => "Double subtraction incomplete",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

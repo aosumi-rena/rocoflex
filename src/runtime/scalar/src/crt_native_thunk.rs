@@ -101,13 +101,13 @@ pub enum SourceCrtNativeThunkError {
 impl SourceCrtNativeThunkError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ReceiptBindingRequired { .. } => "CRT native thunk actual resolver/guard/fallback return does not bind its pending request",
-            Self::ActualNonvolatileContinuationRequired { .. } => "CRT resolver actual return changed source saved argument registers",
-            Self::ResolverSourceCompletionRequired { .. } => "CRT thunk resolver has an outstanding source cursor; matching source and actual return are required together",
+            Self::ReceiptBindingRequired { .. } => "Unexpected resolver callback result",
+            Self::ActualNonvolatileContinuationRequired { .. } => "Resolver changed the saved arguments",
+            Self::ResolverSourceCompletionRequired { .. } => "Resolver is still pending",
         }
     }
 }
-#[must_use = "retain actual native resolver/guard/fallback resources and advanced state"]
+#[must_use]
 pub struct SourceCrtNativeThunkServiceFailure<E> { pub cause: E, pub pending: SourceCrtNativeThunkRequest }
 pub struct SourceCrtNativeThunkRejectedFailure<E> { pub cause: E, pub completed: SourceCrtNativeThunkCompletion }
 
@@ -120,7 +120,7 @@ pub enum SourceCrtThunkResolverBeginError {
 impl SourceCrtThunkResolverBeginError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::PendingResolverRequired { .. } => "CRT thunk requires a pending resolver with no failure or outstanding source cursor",
+            Self::PendingResolverRequired { .. } => "Resolver callback cannot start in the current state",
             Self::Begin(error) => error.reason(),
         }
     }
@@ -144,7 +144,7 @@ impl SourceCrtThunkResolverCompletionError {
     pub fn reason(&self) -> &'static str {
         match self.continuation {
             Some(error) => error.reason(),
-            None => "CRT resolver source completion and actual whole-return packet do not bind the outstanding thunk request",
+            None => "Resolver result does not match the pending call",
         }
     }
 }
@@ -153,7 +153,7 @@ pub struct SourceCrtThunkResolverAccepted {
     pub actual: SourceCrtThunkResolverReturned,
     pub progress: SourceCrtNativeThunkProgress,
 }
-#[must_use = "retain SAME module/cache/native/frame/FP/raw-RET owners on rejected thunk adoption"]
+#[must_use]
 pub struct SourceCrtThunkOwnedResolverError<O, T, N> {
     pub actual: SourceCrtCachedResolverReturned<O, T, N>,
     pub actual_receipt: SourceCrtNativeThunkReceipt,
@@ -165,11 +165,11 @@ impl<O, T, N> SourceCrtThunkOwnedResolverError<O, T, N> {
     pub fn reason(&self) -> &'static str {
         match &self.cause {
             Some(cause) => cause.reason(),
-            None => "owned resolver RET, actual thunk target/frame/full-RAX and SAME owned return receipt must match",
+            None => "Resolver return state does not match its caller",
         }
     }
 }
-#[must_use = "retain accepted module/cache/native/frame/FP/raw-RET owners for required next guard/fallback"]
+#[must_use]
 pub struct SourceCrtThunkOwnedResolverAccepted<O, T, N> {
     pub actual: SourceCrtCachedResolverReturned<O, T, N>,
     pub source: SourceCrtThunkResolverAccepted,
@@ -180,7 +180,7 @@ pub struct SourceCrtThunkActualCallerReturn {
     pub receipt: SourceCrtNativeThunkReceipt,
     pub actual_caller_frame: SourceCrtNativeRetFrame,
 }
-#[must_use = "retain entire module/cache/native/frame/FP capsule and actual return resources"]
+#[must_use]
 pub struct SourceCrtThunkOwnedReturnError<O, T, N, A> {
     pub actual: SourceCrtThunkOwnedResolverAccepted<O, T, N>,
     pub actual_return: A,
@@ -194,12 +194,12 @@ impl<O, T, N, A> SourceCrtThunkOwnedReturnError<O, T, N, A> {
     pub fn reason(&self) -> &'static str {
         match self.continuation {
             Some(error) => error.reason(),
-            None => "owned thunk requires SAME accepted resolver, pending guard/fallback and actual whole caller-return prefix",
+            None => "Invalid resolver callback state",
         }
     }
 }
 
-#[must_use = "retain owned thunk/module/cache/native/frame/FP and caller return resources"]
+#[must_use]
 pub struct SourceCrtThunkOwnedReturned<O, T, N, A> {
     pub actual: SourceCrtThunkOwnedResolverAccepted<O, T, N>,
     pub actual_return: A,
@@ -217,7 +217,7 @@ impl<O, T, N, A> SourceCrtThunkOwnedReturned<O, T, N, A> {
             && project_return(&self.actual.actual.owner, &self.actual_return) == Some(self.completed)
     }
 }
-#[must_use = "retain entire actual child capsule when storage/lock admission rejects"]
+#[must_use]
 pub struct SourceCrtOwnedThunkAdmissionError<O, T, N, A, E> {
     pub actual: SourceCrtThunkOwnedReturned<O, T, N, A>,
     pub actual_frame: SourceCrtNativeRetFrame,
@@ -225,7 +225,7 @@ pub struct SourceCrtOwnedThunkAdmissionError<O, T, N, A, E> {
 
     pub continuation: Option<E>,
 }
-#[must_use = "retain accepted physical/native/frame/FP owners alongside parent progress"]
+#[must_use]
 pub struct SourceCrtOwnedThunkAdmission<O, T, N, A, S> {
     pub actual: SourceCrtThunkOwnedReturned<O, T, N, A>,
     pub(super) source: S,

@@ -83,7 +83,6 @@ mod waypoint_bindings;
 #[path = "desktop_waypoints.rs"]
 mod waypoints;
 pub(crate) use waypoints::{key_bit as waypoint_key_bit, ALL_KEY_BITS as WAYPOINT_KEY_BITS};
-/// Published to the native VST editor only while 3D owns navigation.
 pub(crate) const EXPERIMENTAL_NAVIGATION_BIT: u64 = 1u64 << 39;
 #[path = "desktop_live.rs"]
 mod live;
@@ -627,6 +626,12 @@ impl DesktopApp {
         [&self.model_paths[0], &self.model_paths[1]]
     }
 
+    fn awaiting_custom_vocoder(&self) -> bool {
+        #[cfg(windows)]
+        { self.use_legacy_vocoder && !self.legacy_vocoder_load.valid(&self.legacy_vocoder) }
+        #[cfg(not(windows))]
+        { false }
+    }
     fn legacy_vocoder_active(&self) -> bool {
         cfg!(windows) && self.use_legacy_vocoder
     }
@@ -823,7 +828,7 @@ impl DesktopApp {
     }
     fn quality(&self) -> usize {
         crate::prepare_quality::Preferences::from_document(&self.preset.document)
-            .map(|p|p.label.index()).unwrap_or(0)
+            .map(|p| if self.legacy_vocoder_active() { p.label.index().min(2) } else { p.label.index() }).unwrap_or(0)
     }
     fn set_quality(&mut self, index: usize) {
         if self.layout_blocked() { return; }
@@ -2386,7 +2391,7 @@ impl DesktopApp {
         #[cfg(windows)]
         {
             let validate_legacy = (self.settings && self.settings_resources)
-                || (!self.plugin_hosted && self.legacy_vocoder_active());
+                || self.legacy_vocoder_active();
             self.legacy_vocoder_load.poll(&ctx, &self.legacy_vocoder, validate_legacy);
         }
         let full = ui.max_rect();

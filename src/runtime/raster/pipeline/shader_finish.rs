@@ -78,7 +78,7 @@ pub struct Progress<I> {
     pub target:Option<CallTarget<I>>,pub call_observed:Option<inverse::Observation>,pub called:Option<CallKey<I>>,
     pub ret_target:Option<RetTarget<I>>,pub ret_observed:Option<RetObservation>,pub returned:Option<RetKey<I>>,
 }
-#[must_use = "retain SAME original Frame and all inverse/allocation/cleanup/RET packets"]
+#[must_use]
 pub struct State<F,I,AR,AO,C,R> {
     pub shader:super::State<F,I,AR,AO>,pub progress:Progress<I>,
     pub loop_history:Option<super::root_loop::Progress<I>>,

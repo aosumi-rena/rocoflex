@@ -67,10 +67,10 @@ impl LiveGraph {
     }
 
     pub(crate) fn with_legacy_vocoder(analysis:&[u8],vocoder:&[u8],reader:ConditionReader,
-        multithread:bool)->Result<Self> {
+        profile:crate::prepare_quality::PrepareProfile,multithread:bool)->Result<Self> {
         let selection=super::engine::SynthesisSelection::for_instance(multithread)?;
-        Self::with_engine(analysis,reader,crate::prepare_quality::PrepareProfile::Highest,||
-            MorphEngine::new_legacy(analysis,vocoder,1,selection))
+        Self::with_engine(analysis,reader,profile,||
+            MorphEngine::new_legacy(analysis,vocoder,1,selection,profile))
     }
 
     fn with_engine(analysis:&[u8],reader:ConditionReader,
@@ -97,6 +97,7 @@ impl LiveGraph {
         let head=self.source.cold_count_inputs()?;
         PreparedCountPlan::from_prepared_head(head,self.engine.prepared_count_inputs()?)
     }
+    pub(super) fn r2_vocoder(&self)->bool {self.engine.r2_vocoder}
     pub(crate) fn pitch_sample(&self)->crate::pitch_display::Observation {self.pitch_observation.sample()}
     pub(crate) fn set_pitch_source(&mut self,epoch:u64,channel:u32,bus:u64) {
         self.pitch_observation.change(epoch,channel,bus,self.framing.buffered_input_frames()!=0);

@@ -95,9 +95,9 @@ pub struct SourceCrtModuleLoadBeginError {
 impl SourceCrtModuleLoadBeginError {
     pub fn reason(&self) -> &'static str {
         match self.reason {
-            SourceCrtModuleLoadBeginReason::CallBindingRequired => "59bdfb entry needs the same source-bound function-cache/base/selector",
-            SourceCrtModuleLoadBeginReason::ActualResumeRequired => "59bdfb entry needs its explicitly supplied actual native-return point",
-            SourceCrtModuleLoadBeginReason::ActualSavedContinuationRequired => "59bdfb entry needs the actual saved source continuation registers",
+            SourceCrtModuleLoadBeginReason::CallBindingRequired => "Invalid module cache entry",
+            SourceCrtModuleLoadBeginReason::ActualResumeRequired => "Missing module return address",
+            SourceCrtModuleLoadBeginReason::ActualSavedContinuationRequired => "Missing module caller state",
             SourceCrtModuleLoadBeginReason::Publication(error) => error.reason(),
         }
     }
@@ -113,15 +113,15 @@ pub enum SourceCrtModuleLoadError {
 impl SourceCrtModuleLoadError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ReceiptRequired { .. } => "59bdfb suffix receipt differs from its pending operation",
-            Self::CompareSuffixCompletionRequired { .. } => "59bdfb comparison has an outstanding source cursor; its matching reads and actual return must complete together",
-            Self::OwnedPublicationCompletionRequired { .. } => "59bdfb publication cursor is held with actual module/cache resources; matching owned completion is required",
-            Self::ActualNativeContinuationRequired { .. } => "59bdfb suffix requires actual saved-register/resume continuation",
+            Self::ReceiptRequired { .. } => "Unexpected module load result",
+            Self::CompareSuffixCompletionRequired { .. } => "Module comparison is still pending",
+            Self::OwnedPublicationCompletionRequired { .. } => "Module publication is still pending",
+            Self::ActualNativeContinuationRequired { .. } => "Missing module return state",
             Self::Publication(error) => error.reason(),
         }
     }
 }
-#[must_use = "retain actual native/module/atomic/full-state resources and pending cursor"]
+#[must_use]
 pub struct SourceCrtModuleLoadServiceFailure<E> { pub cause: E, pub pending: SourceCrtModuleLoadRequest }
 pub struct SourceCrtModuleLoadRejectedFailure<E> { pub cause: E, pub completed: SourceCrtModuleLoadCompletion }
 
@@ -134,7 +134,7 @@ pub enum SourceCrtModuleLoadCompareBeginError {
 impl SourceCrtModuleLoadCompareBeginError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::PendingCompareRequired { .. } => "59bdfb comparison handoff requires one pending593e68 call and no outstanding comparison cursor",
+            Self::PendingCompareRequired { .. } => "Module comparison cannot start in the current state",
             Self::Begin(error) => error.reason(),
         }
     }
@@ -157,7 +157,7 @@ impl SourceCrtModuleLoadCompareCompletionError {
     pub fn reason(&self) -> &'static str {
         match self.continuation {
             Some(error) => error.reason(),
-            None => "593e68 fresh-read completion and actual return differ from the outstanding source-bound comparison",
+            None => "Unexpected module comparison result",
         }
     }
 }
@@ -179,18 +179,18 @@ pub struct SourceCrtModuleLoadPublicationBeginError {
     pub outstanding: Option<SourceCrtModuleLoadPublicationBinding>,
 }
 impl SourceCrtModuleLoadPublicationBeginError {
-    pub fn reason(&self) -> &'static str { "module publication handoff requires one unfailed initial SAME publication cursor" }
+    pub fn reason(&self) -> &'static str { "Module publication cannot start in the current state" }
 }
-#[must_use = "retain actual loaded module/cache/native/frame/FP owners on rejected parent adoption"]
+#[must_use]
 pub struct SourceCrtModuleLoadPublicationCompletionError<M, R, P, S> {
     pub pending: SourceCrtModuleLoadProgress,
     pub expected: Option<SourceCrtModuleLoadPublicationBinding>,
     pub actual: SourceCrtModulePublicationCompletion<M, R, P, S>,
 }
 impl<M, R, P, S> SourceCrtModuleLoadPublicationCompletionError<M, R, P, S> {
-    pub fn reason(&self) -> &'static str { "owned publication completion differs from the outstanding module-load source binding" }
+    pub fn reason(&self) -> &'static str { "Unexpected publication result for this module" }
 }
-#[must_use = "retain the accepted actual module/cache/native/frame/FP resource capsule"]
+#[must_use]
 pub struct SourceCrtModuleLoadPublicationAccepted<M, R, P, S> {
     pub actual: SourceCrtModulePublicationCompletion<M, R, P, S>,
     pub progress: SourceCrtModuleLoadProgress,

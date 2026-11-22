@@ -37,7 +37,7 @@ pub enum NumericCause<E> {
     Comparison {request:comparison::Request,error:E},Maximum {request:MaximumRequest,error:E},
 }
 #[derive(Debug)]
-#[must_use="SAME supplied FP owner remains advanced; no automatic retry"]
+#[must_use]
 pub struct NearFailure<E> {pub progress:NearProgress,pub cause:NumericCause<E>}
 #[derive(Clone,Copy,Debug)]
 pub struct NearCompleted {pub progress:NearProgress,pub result:bool}
@@ -104,7 +104,7 @@ pub struct Progress {
 #[derive(Debug)]
 pub enum Cause<E> {Numeric(NumericCause<E>),Storage(Error)}
 #[derive(Debug)]
-#[must_use="SAME iterator stack/capacity and FP owner retain all partial effects"]
+#[must_use]
 pub struct Failure<E> {pub progress:Progress,pub cause:Cause<E>}
 
 struct Graph<'a,P> {fp:&'a mut P,progress:&'a mut Progress,kind:CurveKind}

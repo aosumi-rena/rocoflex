@@ -19,12 +19,12 @@ pub enum PcmProbeMathError {
 impl PcmProbeMathError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed { .. } => "PCM probe requires explicit IntelSdm arithmetic admission",
-            Self::UnsupportedEnvironment { .. } => "PCM probe requires explicit RNE/all-masked/gradual controls",
+            Self::ArchitectureNotClosed { .. } => "Unsupported PCM arithmetic mode",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
             Self::ArithmeticRequired { operation: PcmProbeArithmeticOperation::MultiplyF64, .. } =>
-                "PCM MULSD shared source candidate continuation required",
+                "PCM multiplication incomplete",
             Self::ArithmeticRequired { operation: PcmProbeArithmeticOperation::DivideF64, .. } =>
-                "PCM DIVSD shared source candidate continuation required",
+                "PCM division incomplete",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

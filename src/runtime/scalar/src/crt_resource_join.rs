@@ -11,7 +11,7 @@ pub type SourceCrtOwnedStorageParent<C> = SourceCrtOwnedControllerCompletion<Sou
 pub type SourceCrtOwnedLockParent<C> = SourceCrtOwnedControllerCompletion<SourceCrtLock58d8a0,
     C, SourceCrtLockProgress, SourceCrtLockCompletion>;
 
-#[must_use = "retain original storage/lock controller and complete owned prefix"]
+#[must_use]
 pub enum SourceCrtOwnedResourceParent<C> {
     Storage(SourceCrtOwnedStorageParent<C>),
     Lock(SourceCrtOwnedLockParent<C>),
@@ -50,12 +50,12 @@ pub struct SourceCrtRequiredActualParentReturn {
 }
 impl SourceCrtRequiredActualParentReturn {
     pub fn reason(&self) -> &'static str {
-        "storage/lock actual whole epilogue/caller return remains required; logical AL is not full RAX or a native RET receipt"
+        "Storage or lock callback has not returned"
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtOwnedParentBindReason { CallerAlreadyStopped, CallerCallRequired, SourceParentNotHeldComplete, CallBinding }
-#[must_use = "retain stopped original caller, original child and all nested owners"]
+#[must_use]
 pub struct SourceCrtOwnedParentBindFailure<C> {
     pub caller: SourceCrtResources564ccc,
     pub parent: SourceCrtOwnedResourceParent<C>,
@@ -64,21 +64,21 @@ pub struct SourceCrtOwnedParentBindFailure<C> {
     pub reason: SourceCrtOwnedParentBindReason,
 }
 
-#[must_use = "retain whole original caller/parent/module/cache/native/frame/FP capsule"]
+#[must_use]
 pub struct SourceCrtResourcesOwnedParentReturn<C, H = ()> {
     caller: SourceCrtResources564ccc,
     parent: SourceCrtOwnedResourceParent<C>,
     required: SourceCrtRequiredActualParentReturn,
     history: H,
 }
-#[must_use = "retain both stopped original controllers and every actual prefix owner"]
+#[must_use]
 pub struct SourceCrtOwnedParentReturnParts<C, H> {
     pub caller: SourceCrtResources564ccc,
     pub parent: SourceCrtOwnedResourceParent<C>,
     pub required: SourceCrtRequiredActualParentReturn,
     pub history: H,
 }
-#[must_use = "retain prior history and raw actual prefix resources"]
+#[must_use]
 pub struct SourceCrtParentPrefixHistory<H, A> {
     pub previous: H,
     pub actual: A,
@@ -91,7 +91,7 @@ pub enum SourceCrtParentPrefixError<A, E> {
     Changed { actual: A, before: SourceCrtNativeRetObservation, after: SourceCrtNativeRetObservation },
     Frame { actual: A, observation: SourceCrtNativeRetObservation, actual_frame: SourceCrtNativeRetFrame },
 }
-#[must_use = "retain rejected actual prefix/error and all previous owned history"]
+#[must_use]
 pub struct SourceCrtRejectedParentPrefixHistory<H, A, E> {
     pub previous: H,
     pub rejected: SourceCrtParentPrefixError<A, E>,
@@ -206,9 +206,9 @@ pub struct SourceCrtResourcesError {
     pub actual: SourceCrtResourcesReceipt,
 }
 impl SourceCrtResourcesError {
-    pub fn reason(self) -> &'static str { "564ccc/564cf4 actual inner completion has different entry/address bindings or pending role" }
+    pub fn reason(self) -> &'static str { "Unexpected storage or lock initialization result" }
 }
-#[must_use = "retain the source resource prefix, nested native resources and advanced state"]
+#[must_use]
 pub struct SourceCrtResourcesServiceFailure<E> {
     pub cause: E,
     pub pending: SourceCrtResourcesRequest,

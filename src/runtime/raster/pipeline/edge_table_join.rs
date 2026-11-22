@@ -11,9 +11,9 @@ pub enum Cause {Source(Error),Row(intersection::OwnedFailure)}
 impl Cause {
     pub fn into_error(self)->Error {match self {Self::Source(error)=>error,Self::Row(failure)=>failure.error}}
 }
-#[must_use="same supplied target and other table remain the actual owners"]
+#[must_use]
 pub struct Completed<'t,'o> {pub target:&'t mut EdgeTable,pub other:&'o EdgeTable,pub progress:Progress}
-#[must_use="retain original advanced target, other table and stopped row scratch; do not replay"]
+#[must_use]
 pub struct Failure<'t,'o> {pub target:&'t mut EdgeTable,pub other:&'o EdgeTable,pub progress:Progress,pub cause:Cause}
 pub fn run_source<'t,'o>(target:&'t mut EdgeTable,other:&'o EdgeTable)
     ->Result<Completed<'t,'o>,Failure<'t,'o>>

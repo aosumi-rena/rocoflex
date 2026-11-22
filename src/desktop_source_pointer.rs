@@ -28,7 +28,7 @@ pub(super) struct Prepared {
     numeric: Option<Numeric>,
 }
 
-#[must_use = "retain the exact event, inverse prefix and control/refusal cause"]
+#[must_use]
 pub(super) struct Failure { pub pending: Prepared, pub cause: Cause }
 pub(super) struct Completed { pending: Prepared, position: [f32; 2] }
 impl Completed { pub fn position(&self) -> [f32; 2] { self.position } }

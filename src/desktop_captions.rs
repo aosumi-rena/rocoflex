@@ -133,7 +133,6 @@ impl DesktopApp {
         }
     }
 
-    /// Shares native caption placement and source-indexed bounds with 3D.
     pub(super) fn paint_projected_source_labels(&mut self,painter:&egui::Painter,rect:Rect,
         positions:&[Vec<Pos2>]) {
         self.label_rects.clear();
@@ -164,7 +163,6 @@ impl DesktopApp {
     }
 }
 
-/// The same text layout, placement cache, and bounds are used by both views.
 fn paint_caption(painter:&egui::Painter,rect:Rect,text:&str,trajectory:bool,points:Vec<[f32;2]>,
     delta:Point,slot:&mut Option<Cached>,work:&mut usize,font:&FontId,color:Color32,height:i32)->Option<Rect> {
     let label=text.to_owned();

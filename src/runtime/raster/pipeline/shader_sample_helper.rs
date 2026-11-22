@@ -114,9 +114,9 @@ pub enum Next {
 
     AfterAddss27ff10,
 }
-#[must_use = "remainder/whole normal return/native output STILL REQUIRED on SAME Frame"]
+#[must_use]
 pub struct Required<I> {pub progress:Progress<I>,pub next:Next}
-#[must_use = "original borrowed Frame MUST remain owned by actual call provider on failure"]
+#[must_use]
 pub struct Failure<I,E> {pub progress:Progress<I>,pub cause:Cause<E>}
 
 pub fn prefix<S:Services>(host:&mut S,frame:&mut S::Frame,entry:Entry<S::Identity>)

@@ -107,7 +107,7 @@ pub(super) fn input_message(ctx: &Context, message: &str) -> String {
 
 pub(super) fn status(ctx: &Context, message: &str) -> String {
     for heading in ["Valid analysis model", "Invalid analysis model",
-        "Valid morphing model", "Invalid morphing model"] {
+        "Valid morphing model", "Invalid morphing model", "Valid custom vocoder", "Invalid custom vocoder"] {
         if let Some(rest) = message.strip_prefix(heading) {
             if let Some(numbers) = rest.strip_prefix("\nFormat ").and_then(|rest| rest.strip_suffix(" nodes"))
                 && let Some((version, nodes)) = numbers.split_once(" · ")

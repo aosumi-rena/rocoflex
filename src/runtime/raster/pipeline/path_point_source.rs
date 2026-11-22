@@ -42,7 +42,7 @@ pub struct Progress {
 #[derive(Debug)]
 pub enum Cause<E> {Storage(Error),Arithmetic(E)}
 #[derive(Debug)]
-#[must_use="SAME iterator cursor/stack and caller FP owner remain advanced on failure"]
+#[must_use]
 pub struct Failure<E> {pub progress:Progress,pub cause:Cause<E>}
 #[derive(Debug)]
 pub struct ReadFailure {pub progress:Progress,pub error:Error}

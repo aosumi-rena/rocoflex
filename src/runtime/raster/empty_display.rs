@@ -65,16 +65,16 @@ pub enum FailureCause {
     Recipe(empty::Error), Numeric(empty::RunError<empty::TensorError>),
     IncompleteTensor,
 }
-#[must_use = "failure retains request and advanced tensors; never publish as complete"]
+#[must_use]
 pub struct Failure {
     pub request: OwnedRequest, pub cause: FailureCause,
     pub tensors: empty::TensorServices,
 }
-#[must_use = "completed owned BGRA tensor; caller owns upload/result lifetime"]
+#[must_use]
 pub struct Completed {
     pub request: OwnedRequest, pub tensor: image::SoftwareStorage,
 }
-#[must_use = "scheduler retirement retains partial values; never publish as a completed image"]
+#[must_use]
 pub struct Superseded<C> {
     pub request: OwnedRequest,
     pub tensors: empty::TensorServices,

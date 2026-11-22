@@ -16,7 +16,7 @@ pub(crate) fn configured_models() -> crate::Result<(PathBuf, PathBuf, bool)> {
     let analysis = path("model").ok_or("Choose an analysis model in Rocoflex Settings.")?;
     let legacy = settings["useLegacyVocoder"].as_bool().unwrap_or(false);
     let synthesis = if legacy {
-        path("legacyVocoder").ok_or("Choose a legacy vocoder in Rocoflex Settings.")?
+        path("legacyVocoder").ok_or("Choose a custom vocoder in Rocoflex Settings.")?
     } else {
         path("userdata").ok_or("Choose a morphing model in Rocoflex Settings.")?
     };

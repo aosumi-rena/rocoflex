@@ -1,5 +1,3 @@
-//! Windows MIDI 1.0 input. Each worker owns a WinMM thread-message endpoint.
-//! No app pointer crosses into a callback and no MIDI call runs on the audio thread.
 use serde::{Deserialize, Serialize};
 use super::midi_match::{Gate, MidiBinding};
 use super::input_publication::Publication;
@@ -86,7 +84,6 @@ impl Drop for InputHandle {
     }
 }
 fn notify(wake: &Arc<dyn Fn() + Send + Sync>) {
-    // A UI repaint failure must not unwind past a live native input handle.
     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| wake()));
 }
 struct WakeOnExit { wake: Arc<dyn Fn() + Send + Sync>, terminal: Arc<AtomicBool> }
@@ -135,7 +132,7 @@ pub(super) fn worker(key: DeviceKey, wake: Arc<dyn Fn() + Send + Sync>) -> std::
     let handle = thread::Builder::new().name("rocoflex-midi-input".into()).spawn(move || {
         let _exit_wake = WakeOnExit { wake: wake.clone(), terminal: terminal_thread };
         let mut msg = WinMessage::default();
-        // Force creation of the message queue before midiInOpen posts to it.
+        // Create the thread queue before WinMM can post to it.
         unsafe { PeekMessageW(&mut msg, 0, 0, 0, 0); }
         let id = match unique_id(&key) {
             Ok(id) => id,
@@ -148,8 +145,7 @@ pub(super) fn worker(key: DeviceKey, wake: Arc<dyn Fn() + Send + Sync>) -> std::
             notify(&wake); return;
         }
         let _handle_owner = InputHandle { handle, close_error: close_error_thread, wake: wake.clone() };
-        // IDs may move as devices are plugged/unplugged. Check the opened
-        // handle and refuse an identity that changed during open.
+        // Device IDs can change between enumeration and open.
         let started = if caps_key(handle).as_ref() == Some(&key) { unsafe { midiInStart(handle) } }
             else { u32::MAX };
         if started == 0 { let _ = events_tx.try_send(Event::Opened(Ok(()))); }
@@ -167,8 +163,6 @@ pub(super) fn worker(key: DeviceKey, wake: Arc<dyn Fn() + Send + Sync>) -> std::
                     notify(&wake); break;
                 }
                 if wait == 1 || ready_thread.load(Ordering::Acquire) != epoch_thread.load(Ordering::Acquire) {
-                    // Retire messages queued under the old owner before acknowledging
-                    // a new one. Shutdown retains priority even under device flooding.
                     loop {
                         let requested = epoch_thread.load(Ordering::Acquire);
                         let mut empty = false;
@@ -193,8 +187,6 @@ pub(super) fn worker(key: DeviceKey, wake: Arc<dyn Fn() + Send + Sync>) -> std::
                     if ready_thread.load(Ordering::Acquire) != epoch_thread.load(Ordering::Acquire) { break; }
                     if unsafe { PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) } == 0 { break; }
                     if msg.message == MM_MIM_DATA && msg.wparam == handle {
-                        // Physical state survives document-owner changes, including
-                        // releases drained during a scope handoff or queue overflow.
                         let mut guard = match publication_thread.worker() {
                             Ok(guard) => guard,
                             Err(_) => { failed_thread.store(true,Ordering::Release); notify(&wake); break 'worker; }

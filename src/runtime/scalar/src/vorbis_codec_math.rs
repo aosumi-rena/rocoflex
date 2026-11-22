@@ -32,22 +32,22 @@ pub enum VorbisCodecMathError {
 impl VorbisCodecMathError {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "explicit scalar architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "explicit scalar state is not RNE/all-masked/gradual",
-            Self::LogBinding(_) => "5834c0 explicit log binding required",
-            Self::Log(_) => "5834c0 source log continuation required",
-            Self::Phase(PhaseError::NonzeroSourceProfileRequired) => "57ddb0/586960 explicit nonzero source selector required",
-            Self::Phase(_) => "57ddb0/586960 source F64 phase continuation required",
+            Self::ArchitectureNotClosed => "Unsupported scalar arithmetic architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::LogBinding(_) => "Logarithm mode required",
+            Self::Log(_) => "Logarithm evaluation incomplete",
+            Self::Phase(PhaseError::NonzeroSourceProfileRequired) => "Phase mode required",
+            Self::Phase(_) => "Phase evaluation incomplete",
             Self::WordZeroPhase(error) => error.reason(),
-            Self::Cosine(ScalarTrigError::NonzeroSourceProfileRequired) => "57e330 explicit nonzero source selector required",
-            Self::Cosine(_) => "57e330 source F32 cosine continuation required",
+            Self::Cosine(ScalarTrigError::NonzeroSourceProfileRequired) => "Cosine mode required",
+            Self::Cosine(_) => "Cosine evaluation incomplete",
             Self::WordZeroCosine(error) => error.reason(),
-            Self::Exponential(ExpError::NonzeroSourceProfileRequired) => "57f8e0 explicit nonzero source selector required",
-            Self::Exponential(_) => "57f8e0 source exponential continuation required",
+            Self::Exponential(ExpError::NonzeroSourceProfileRequired) => "Exponential mode required",
+            Self::Exponential(_) => "Exponential evaluation incomplete",
             Self::WordZeroExponential(error) => error.reason(),
-            Self::SquareRoot(_) => "SQRTSS/587694 source square-root continuation required",
+            Self::SquareRoot(_) => "Square root evaluation incomplete",
             Self::Arctangent(error) => error.reason(),
-            Self::MathError(_) => "explicit source math-error callback continuation required",
+            Self::MathError(_) => "Math error handler required",
         }
     }
 

@@ -51,9 +51,9 @@ pub enum SourceTrigSpecialF64Error {
 impl SourceTrigSpecialF64Error {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::NonfiniteHelperEntryRequired { .. } => "597adc/597b04 special entry requires actual nonfinite F64 input",
-            Self::OuterBindingRequired { .. } => "trig F64 actual outer/slot receipt differs from pending WHOLE5962a0 call",
-            Self::CookieFailureContinuationRequired { .. } => "trig F64 actual5962a0 cookie-failure continuation required",
+            Self::NonfiniteHelperEntryRequired { .. } => "Expected a nonfinite double-precision input",
+            Self::OuterBindingRequired { .. } => "Unexpected trigonometric error handler result",
+            Self::CookieFailureContinuationRequired { .. } => "Stack check failure handler required",
         }
     }
     pub fn known_advanced_state(self) -> ExplicitExceptionState {
@@ -63,7 +63,7 @@ impl SourceTrigSpecialF64Error {
         }
     }
 }
-#[must_use = "retain actual WHOLE5962a0 stack/callback/errno owner and advanced suffix"]
+#[must_use]
 pub struct SourceTrigSpecialF64ServiceFailure<E> {
     pub cause: E, pub pending: SourceTrigF64OuterArguments,
     pub known_advanced: Option<ExplicitExceptionState>,

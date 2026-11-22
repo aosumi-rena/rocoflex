@@ -74,7 +74,7 @@ pub enum SourceCrtCachedResolverLoadEntryError {
 impl SourceCrtCachedResolverLoadEntryError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::EntryBindingRequired { .. } => "module-load suffix entry differs from the pending source binding or a suffix is already outstanding",
+            Self::EntryBindingRequired { .. } => "Module load cannot start in the current state",
             Self::Begin(error) => error.reason(),
         }
     }
@@ -86,7 +86,7 @@ pub struct SourceCrtCachedResolverLoadCompletionError {
     pub actual: SourceCrtModuleLoadCompletion,
 }
 impl SourceCrtCachedResolverLoadCompletionError {
-    pub fn reason(&self) -> &'static str { "module-load suffix completion differs from the outstanding source-bound native/load continuation" }
+    pub fn reason(&self) -> &'static str { "Unexpected module load result" }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,7 +94,7 @@ pub struct SourceCrtCachedResolverLoadAccepted {
     pub actual_suffix: SourceCrtModuleLoadCompletion,
     pub progress: SourceCrtCachedResolverProgress,
 }
-#[must_use = "retain loaded-module/cache/native/frame/FP owners on rejected resolver adoption"]
+#[must_use]
 pub enum SourceCrtCachedResolverOwnedLoadError<M, R, P, S> {
     PublishedSuffixRequired { pending: SourceCrtCachedResolverProgress,
         actual: SourceCrtModuleLoadPublicationAccepted<M, R, P, S> },
@@ -104,12 +104,12 @@ pub enum SourceCrtCachedResolverOwnedLoadError<M, R, P, S> {
 impl<M, R, P, S> SourceCrtCachedResolverOwnedLoadError<M, R, P, S> {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::PublishedSuffixRequired { .. } => "owned module-load capsule must retain the SAME completed publication in its completed load suffix",
+            Self::PublishedSuffixRequired { .. } => "Published module differs from the loaded module",
             Self::Source { cause, .. } => cause.reason(),
         }
     }
 }
-#[must_use = "retain the full accepted module/cache/native/frame/FP capsule for the required next procedure call"]
+#[must_use]
 pub struct SourceCrtCachedResolverOwnedLoadAccepted<M, R, P, S> {
     pub actual: SourceCrtModuleLoadPublicationAccepted<M, R, P, S>,
     pub source: SourceCrtCachedResolverLoadAccepted,
@@ -117,13 +117,13 @@ pub struct SourceCrtCachedResolverOwnedLoadAccepted<M, R, P, S> {
 impl SourceCrtCachedResolverError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::FunctionCacheBindingRequired { .. } => "59bd70 supplied function-cache address differs from actual base+861cd8+8*zeroextended selector",
-            Self::ReceiptBindingRequired { .. } => "59bd70 cached-module actual memory/procedure/atomic receipt does not bind pending source operation",
-            Self::ActualNonvolatileContinuationRequired { .. } => "59bd70 actual procedure return changed source cache-base/index/sentinel registers",
+            Self::FunctionCacheBindingRequired { .. } => "Function cache entry does not match the selector",
+            Self::ReceiptBindingRequired { .. } => "Unexpected resolver result",
+            Self::ActualNonvolatileContinuationRequired { .. } => "Resolver changed the saved cache state",
         }
     }
 }
-#[must_use = "retain actual resolver/native/memory resources and partial cursor"]
+#[must_use]
 pub struct SourceCrtCachedResolverServiceFailure<E> {
     pub cause: E,
     pub pending: SourceCrtCachedResolverRequest,

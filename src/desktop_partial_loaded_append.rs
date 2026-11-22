@@ -124,7 +124,7 @@ pub enum ContextIssue { WrongPhase, SnapshotChanged, Provider(provider::Error) }
 pub struct ContextRefusal { pub context: GeometryContext, pub issue: ContextIssue }
 pub struct ContextStopped<C, T, S> { pub pending: OwnedAppend<C, T, S>, pub refusal: ContextRefusal }
 
-#[must_use = "Retain receiver/source/services and advanced state through context or probe refusal."]
+#[must_use]
 pub struct OwnedAppend<C, T, S> {
     receiver: C, candidate: AppendState, staged_source: Option<T>, services: S,
     phase: Phase, halted: bool, resume: Option<Phase>, request: Option<ContextRequest>,

@@ -14,9 +14,9 @@ pub enum Cause {Source(Error),Sort(sort::Error)}
 impl Cause {
     pub fn into_error(self)->Error {match self {Self::Source(error)=>error,Self::Sort(_)=>Error::Size}}
 }
-#[must_use="table is the actual produced owned value, input remains borrowed"]
+#[must_use]
 pub struct Completed<'r> {pub rectangles:&'r region::Rectangles,pub table:EdgeTable,pub progress:Progress}
-#[must_use="retain partial rows/table and original ordered rectangle list; no replay"]
+#[must_use]
 pub struct Failure<'r> {
     pub rectangles:&'r region::Rectangles,pub table:Option<EdgeTable>,
     pub initial_rows:Vec<Option<Row>>,pub progress:Progress,pub cause:Cause,

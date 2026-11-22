@@ -77,8 +77,8 @@ pub enum SourceScalarCpuInitializerError {
 impl SourceScalarCpuInitializerError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::RecordMismatch { .. } => "supplied CPU instruction/input does not match pending597370 request",
-            Self::AlreadyComplete { .. } => "597370 source initializer already completed; record not consumed",
+            Self::RecordMismatch { .. } => "Processor feature result does not match the request",
+            Self::AlreadyComplete { .. } => "Processor initialization already completed",
         }
     }
 }

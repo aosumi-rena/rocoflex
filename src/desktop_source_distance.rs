@@ -19,7 +19,7 @@ pub(super) struct Norm {
     pub operands: Option<Operands>,
 }
 
-#[must_use = "retain the norm call's operands, pending callback request and logical state"]
+#[must_use]
 pub(super) struct Failure { pub pending: Norm }
 
 impl Failure {

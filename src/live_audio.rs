@@ -4,7 +4,11 @@ use crate::{Result, wasapi_capture as capture, wasapi_duplex as duplex};
 pub use duplex::{Configuration, Policy};
 #[path = "live_audio_mmcss.rs"]
 mod mmcss;
+#[path = "live_audio_resample.rs"]
+mod resample;
 pub use mmcss::SchedulingSnapshot;
+
+pub(crate) const CLIENT_SAMPLE_RATES: &[u32] = &[44_100, 48_000, 88_200, 96_000];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase { Starting, Receiving, Running, Stopping, Stopped, BackendUnavailable, Failed }
@@ -110,12 +114,12 @@ pub fn interactive_policy() -> Policy {
         cancel: duplex::CancelPolicy::StopImmediately, underrun: duplex::UnderrunPolicy::ObserveAndContinue }
 }
 
-fn validate_start(configuration: &Configuration, model: bool) -> Result<()> {
+fn validate_start(configuration: &Configuration) -> Result<()> {
     if configuration.capture.sample_rate != configuration.render.sample_rate {
         return Err("Live capture and render client rates must match".into());
     }
-    if model && configuration.capture.sample_rate != 48_000 {
-        return Err("The live model requires explicit 48000 Hz capture and render client formats".into());
+    if !CLIENT_SAMPLE_RATES.contains(&configuration.capture.sample_rate) {
+        return Err("Choose a supported live sample rate: 44100, 48000, 88200, or 96000 Hz".into());
     }
     configuration.capture.format().map_err(|e| format!("Input format: {e:?}"))?;
     configuration.render.format().map_err(|e| format!("Output format: {e:?}"))?;
@@ -126,18 +130,18 @@ pub fn start<P, F>(configuration: Configuration, make_processor: F) -> Result<Ha
 where F: FnOnce() -> Result<P> + Send + 'static,
     P: duplex::Processor<Error = String> + 'static,
 {
-    start_with_policy(configuration, make_processor, true)
+    start_with_policy(configuration, make_processor)
 }
 
 pub(crate) fn start_direct(configuration: Configuration, processor: DirectProcessor) -> Result<Handle> {
-    start_with_policy(configuration, move || Ok(processor), false)
+    start_with_policy(configuration, move || Ok(processor))
 }
 
-fn start_with_policy<P, F>(configuration: Configuration, make_processor: F, model: bool) -> Result<Handle>
+fn start_with_policy<P, F>(configuration: Configuration, make_processor: F) -> Result<Handle>
 where F: FnOnce() -> Result<P> + Send + 'static,
     P: duplex::Processor<Error = String> + 'static,
 {
-    validate_start(&configuration, model)?;
+    validate_start(&configuration)?;
     let shared = Arc::new(Mutex::new(Snapshot { phase: Phase::Starting,
         sample_rate: configuration.capture.sample_rate, capture_channels: configuration.capture.channels.count(),
         callback_frames: configuration.callback_frames.get(), buffered_capture_frames: 0,
@@ -284,16 +288,37 @@ impl duplex::Processor for DirectProcessor {
     }
 }
 
-pub struct MonoProcessor<F> { input_channel: usize, process: F, mono_input: Vec<f32>, mono_output: Vec<f32> }
+struct RateConversion {
+    input: resample::StreamingResampler,
+    output: resample::StreamingResampler,
+    model_input: Vec<f32>,
+    client_output: Vec<f32>,
+}
+pub struct MonoProcessor<F> {
+    input_channel: usize,
+    client_rate: u32,
+    process: F,
+    mono_input: Vec<f32>,
+    mono_output: Vec<f32>,
+    conversion: Option<RateConversion>,
+}
 impl<F> MonoProcessor<F> {
-    pub fn new(input_channel: usize, process: F) -> Self {
-        Self { input_channel, process, mono_input: Vec::new(), mono_output: Vec::new() }
+    pub fn new(input_channel: usize, client_rate: u32, process: F) -> Result<Self> {
+        if !CLIENT_SAMPLE_RATES.contains(&client_rate) {
+            return Err("Unsupported live sample rate".into());
+        }
+        let conversion = if client_rate == 48_000 { None } else {
+            Some(RateConversion { input: resample::StreamingResampler::new(client_rate, 48_000)?,
+                output: resample::StreamingResampler::new(48_000, client_rate)?,
+                model_input: Vec::new(), client_output: Vec::new() })
+        };
+        Ok(Self { input_channel, client_rate, process, mono_input: Vec::new(), mono_output: Vec::new(), conversion })
     }
 }
 impl<F: FnMut(&[f32], &mut Vec<f32>) -> Result<()>> duplex::Processor for MonoProcessor<F> {
     type Error = String;
     fn process(&mut self, input: &capture::Packet, format: duplex::Format, output: &mut Vec<f32>) -> Result<()> {
-        if format.sample_rate != 48_000 { return Err("Live model client rate must be 48000 Hz".into()); }
+        if format.sample_rate != self.client_rate { return Err("Live client rate changed without preparation".into()); }
         let channels = usize::from(format.capture_channels.count());
         if self.input_channel >= channels { return Err(format!("Input channel {} unavailable in {channels}-channel format", self.input_channel)); }
         let frames = input.header.frames as usize;
@@ -311,12 +336,23 @@ impl<F: FnMut(&[f32], &mut Vec<f32>) -> Result<()>> duplex::Processor for MonoPr
         }
         if self.mono_input.iter().any(|sample| !sample.is_finite()) { return Err("Nonfinite input audio".into()); }
         self.mono_output.clear();
-        (self.process)(&self.mono_input, &mut self.mono_output)?;
+        if let Some(conversion) = &mut self.conversion {
+            conversion.model_input.clear();
+            conversion.input.process(&self.mono_input, &mut conversion.model_input)?;
+            (self.process)(&conversion.model_input, &mut self.mono_output)?;
+        } else {
+            (self.process)(&self.mono_input, &mut self.mono_output)?;
+        }
         if self.mono_output.iter().any(|sample| !sample.is_finite()) { return Err("Nonfinite model output".into()); }
+        let client_output = if let Some(conversion) = &mut self.conversion {
+            conversion.client_output.clear();
+            conversion.output.process(&self.mono_output, &mut conversion.client_output)?;
+            &conversion.client_output
+        } else { &self.mono_output };
         let render_channels = usize::from(format.render_channels.count());
-        let added = self.mono_output.len().checked_mul(render_channels).ok_or("Render sample extent overflow")?;
+        let added = client_output.len().checked_mul(render_channels).ok_or("Render sample extent overflow")?;
         output.reserve(added);
-        for &sample in &self.mono_output { for _ in 0..render_channels { output.push(sample); } }
+        for &sample in client_output { for _ in 0..render_channels { output.push(sample); } }
         Ok(())
     }
 }

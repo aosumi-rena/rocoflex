@@ -18,9 +18,9 @@ pub enum SourceRawAddsdError {
 impl SourceRawAddsdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "ADDSD requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::AlignmentRequired { .. } => "ADDSD exact aligned continuation is required",
-            Self::CandidateRequired { .. } => "ADDSD candidate/exception continuation is not closed",
+            Self::ControlRequired { .. } => "Unsupported double addition mode",
+            Self::AlignmentRequired { .. } => "Aligned double addition unavailable",
+            Self::CandidateRequired { .. } => "Double addition incomplete",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

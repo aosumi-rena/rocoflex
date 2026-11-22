@@ -35,9 +35,9 @@ pub enum SourceTrigSpecialError {
 impl SourceTrigSpecialError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::NonfiniteHelperEntryRequired { .. } => "597ac8/597af0 special entry requires actual nonfinite F32 input",
-            Self::OuterBindingRequired { .. } => "trig special outer/slot receipt does not match pending596150 call",
-            Self::CookieFailureContinuationRequired { .. } => "trig special actual596150 cookie-failure continuation required",
+            Self::NonfiniteHelperEntryRequired { .. } => "Expected a nonfinite single-precision input",
+            Self::OuterBindingRequired { .. } => "Unexpected trigonometric error handler result",
+            Self::CookieFailureContinuationRequired { .. } => "Stack check failure handler required",
         }
     }
     pub fn known_advanced_state(self) -> ExplicitExceptionState {
@@ -48,7 +48,7 @@ impl SourceTrigSpecialError {
     }
 }
 
-#[must_use = "retain actual outer callback/frame/slot resources and advanced-state suffix"]
+#[must_use]
 pub struct SourceTrigSpecialServiceFailure<E> {
     pub cause: E,
     pub pending: SourceF32MatherrOuterArguments,

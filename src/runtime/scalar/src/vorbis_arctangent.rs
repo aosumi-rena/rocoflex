@@ -60,39 +60,39 @@ impl SourceVorbisArctangent {
             (wide, 0)
         } else if wide < 0x3fe6_0000_0000_0000 {
 
-            let doubled = arithmetic.add("57dadc/ADDSD twice argument", wide, wide)?;
-            let denominator = arithmetic.add("57dae3/ADDSD argument+2", wide, TWO)?;
-            let numerator = arithmetic.subtract("57daeb/SUBSD twice argument-1", doubled, ONE)?;
-            (arithmetic.divide("57daf6/DIVSD half reduction", numerator, denominator)?, HALF_REDUCTION_BASE)
+            let doubled = arithmetic.add("ADDSD twice argument", wide, wide)?;
+            let denominator = arithmetic.add("ADDSD argument+2", wide, TWO)?;
+            let numerator = arithmetic.subtract("SUBSD twice argument-1", doubled, ONE)?;
+            (arithmetic.divide("DIVSD half reduction", numerator, denominator)?, HALF_REDUCTION_BASE)
         } else if wide < 0x3ff3_0000_0000_0000 {
-            let numerator = arithmetic.subtract("57db19/SUBSD argument-1", wide, ONE)?;
-            let denominator = arithmetic.add("57db24/ADDSD argument+1", wide, ONE)?;
-            (arithmetic.divide("57db2f/DIVSD one reduction", numerator, denominator)?, ONE_REDUCTION_BASE)
+            let numerator = arithmetic.subtract("SUBSD argument-1", wide, ONE)?;
+            let denominator = arithmetic.add("ADDSD argument+1", wide, ONE)?;
+            (arithmetic.divide("DIVSD one reduction", numerator, denominator)?, ONE_REDUCTION_BASE)
         } else if wide < 0x4003_8000_0000_0000 {
 
-            let scaled = arithmetic.multiply("57db52/MULSD argument*1.5", wide, THREE_HALVES)?;
-            let numerator = arithmetic.subtract("57db5a/SUBSD argument-1.5", wide, THREE_HALVES)?;
-            let denominator = arithmetic.add("57db65/ADDSD scaled+1", scaled, ONE)?;
-            (arithmetic.divide("57db70/DIVSD three-halves reduction", numerator, denominator)?, THREE_HALVES_REDUCTION_BASE)
+            let scaled = arithmetic.multiply("MULSD argument*1.5", wide, THREE_HALVES)?;
+            let numerator = arithmetic.subtract("SUBSD argument-1.5", wide, THREE_HALVES)?;
+            let denominator = arithmetic.add("ADDSD scaled+1", scaled, ONE)?;
+            (arithmetic.divide("DIVSD three-halves reduction", numerator, denominator)?, THREE_HALVES_REDUCTION_BASE)
         } else {
 
-            (arithmetic.divide("57dbe0/DIVSD negative reciprocal", NEGATIVE_ONE, wide)?, RECIPROCAL_REDUCTION_BASE)
+            (arithmetic.divide("DIVSD negative reciprocal", NEGATIVE_ONE, wide)?, RECIPROCAL_REDUCTION_BASE)
         };
 
-        let square = arithmetic.multiply("57dbea/MULSD reduced square", reduced, reduced)?;
-        let numerator = arithmetic.multiply("57dbf4/MULSD numerator high", square, NUMERATOR_HIGH)?;
-        let denominator = arithmetic.multiply("57dbff/MULSD denominator high", square, DENOMINATOR_HIGH)?;
-        let cube = arithmetic.multiply("57dc07/MULSD reduced cube", square, reduced)?;
-        let numerator = arithmetic.add("57dc0b/ADDSD numerator middle", numerator, NUMERATOR_MIDDLE)?;
-        let denominator = arithmetic.add("57dc13/ADDSD denominator middle", denominator, DENOMINATOR_MIDDLE)?;
-        let numerator = arithmetic.multiply("57dc1b/MULSD numerator square", numerator, square)?;
-        let denominator = arithmetic.multiply("57dc1f/MULSD denominator square", denominator, square)?;
-        let numerator = arithmetic.add("57dc23/ADDSD numerator low", numerator, NUMERATOR_LOW)?;
-        let denominator = arithmetic.add("57dc2b/ADDSD denominator low", denominator, DENOMINATOR_LOW)?;
-        let numerator = arithmetic.multiply("57dc33/MULSD numerator cube", numerator, cube)?;
-        let quotient = arithmetic.divide("57dc37/DIVSD rational", numerator, denominator)?;
-        let correction = arithmetic.subtract("57dc3b/SUBSD rational-reduced", quotient, reduced)?;
-        let result = arithmetic.subtract("57dc3f/SUBSD base-correction", base, correction)?;
+        let square = arithmetic.multiply("MULSD reduced square", reduced, reduced)?;
+        let numerator = arithmetic.multiply("MULSD numerator high", square, NUMERATOR_HIGH)?;
+        let denominator = arithmetic.multiply("MULSD denominator high", square, DENOMINATOR_HIGH)?;
+        let cube = arithmetic.multiply("MULSD reduced cube", square, reduced)?;
+        let numerator = arithmetic.add("ADDSD numerator middle", numerator, NUMERATOR_MIDDLE)?;
+        let denominator = arithmetic.add("ADDSD denominator middle", denominator, DENOMINATOR_MIDDLE)?;
+        let numerator = arithmetic.multiply("MULSD numerator square", numerator, square)?;
+        let denominator = arithmetic.multiply("MULSD denominator square", denominator, square)?;
+        let numerator = arithmetic.add("ADDSD numerator low", numerator, NUMERATOR_LOW)?;
+        let denominator = arithmetic.add("ADDSD denominator low", denominator, DENOMINATOR_LOW)?;
+        let numerator = arithmetic.multiply("MULSD numerator cube", numerator, cube)?;
+        let quotient = arithmetic.divide("DIVSD rational", numerator, denominator)?;
+        let correction = arithmetic.subtract("SUBSD rational-reduced", quotient, reduced)?;
+        let result = arithmetic.subtract("SUBSD base-correction", base, correction)?;
 
         let narrowed = MathErrorCallbackCompletion { result_f64_bits: result, advanced: arithmetic.state }
             .into_rne_f32().map_err(VorbisScalarError::ConversionRequired)?;

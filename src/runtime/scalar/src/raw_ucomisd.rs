@@ -26,8 +26,8 @@ pub enum SourceRawUcomisdError {
 impl SourceRawUcomisdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "UCOMISD requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::CoreStatusRequired { .. } => "UCOMISD candidate status is outside invalid-or-denormal policy",
+            Self::ControlRequired { .. } => "Unsupported double comparison mode",
+            Self::CoreStatusRequired { .. } => "Unsupported comparison result status",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {
@@ -56,10 +56,10 @@ pub enum SourceStrictUcomisdError {
 impl SourceStrictUcomisdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed { .. } => "strict UCOMISD requires explicit IntelSdm arithmetic admission",
-            Self::UnsupportedEnvironment { .. } => "strict UCOMISD requires explicit RNE/allmasked/gradual controls",
-            Self::EvaluationRequired { .. } => "strict UCOMISD shared evaluation continuation required",
-            Self::ReportedStateRequired { .. } => "strict UCOMISD reported outcome state requires admission",
+            Self::ArchitectureNotClosed { .. } => "Unsupported double comparison architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::EvaluationRequired { .. } => "Double comparison incomplete",
+            Self::ReportedStateRequired { .. } => "Invalid comparison result state",
         }
     }
     pub fn known_advanced_state(self, _entry: ExplicitExceptionState) -> ExplicitExceptionState {

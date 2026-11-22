@@ -22,6 +22,7 @@ rfd = { version = "=0.17.2", optional = true, default-features = false }
 wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["std", "wgsl"] }
 
 [target.'cfg(windows)'.dependencies]
+rocoflex-r3-vocoder = { path = "vendor/rynthv-vocoder" }
 windows-core = "=0.62.2"
 accesskit_windows = { version = "=0.32.1", optional = true }
 wgpu = { version = "=30.0.1", optional = true, default-features = false, features = ["dx12"] }

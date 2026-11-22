@@ -34,7 +34,7 @@ pub struct SourceCrtQueryHelperCallBindings<P, S, E> {
     pub actual_entry: fn(&E) -> SourceCrtQueryHelperCallEntry,
     pub owned_entry: fn(&P, &S) -> Option<SourceCrtQueryHelperCallEntry>,
 }
-#[must_use = "retain original stopped parent C/H and actual independent call authority"]
+#[must_use]
 pub struct SourceCrtQueryHelperParent<P, S, H, E> {
     parent: Option<SourceCrtQueryCursor>, history: H,
     bindings: SourceCrtQueryOwnedBindings<P, S>, actual_entry: E,
@@ -54,12 +54,12 @@ impl<P, S, H, E> SourceCrtQueryHelperParent<P, S, H, E> {
     }
 }
 
-#[must_use = "retain both child P/S/resources and independent original parent token"]
+#[must_use]
 pub struct SourceCrtQueryHelperEntered<P, S, H, CH, E> {
     pub child: SourceCrtQueryOwned<P, S, CH>,
     pub parent: SourceCrtQueryHelperParent<P, S, H, E>,
 }
-#[must_use = "retain rejected original parent, existing child/history, actual entry and advanced P/S"]
+#[must_use]
 pub struct SourceCrtQueryHelperHoldFailure<P, S, H, CH, E> {
     pub parent: SourceCrtQueryOwned<P, S, H>, pub child: SourceCrtQueryHelperSource,
     pub child_history: CH, pub actual_entry: E,

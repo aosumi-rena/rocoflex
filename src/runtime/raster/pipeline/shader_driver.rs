@@ -14,7 +14,7 @@ type SO<S> = <S as rows::sample::Services>::SampleOutputPacket;
 type LoopRequired<S> = rows::Required<F<S>,I<S>,AR<S>,AO<S>>;
 type SetupRequired<S> = setup::Required<F<S>,I<S>,AR<S>,AO<S>>;
 
-#[must_use = "unimplemented exact branch retains original advanced Frame/resources"]
+#[must_use]
 pub enum Required<S:Services> {
     Prefix(super::Required<F<S>>),Setup(SetupRequired<S>),Loop(LoopRequired<S>),
 
@@ -26,7 +26,7 @@ pub enum Outcome<S:Services> {
 
     Returned(setup::finish::Completed<setup::finish::StateOf<S>>),
 }
-#[must_use = "each original typed failure owns SAME Frame and ALL partial receipts"]
+#[must_use]
 pub enum Failure<S:Services> {
     Prefix(super::Failure<F<S>,E<S>>),
     Inverse(inverse::Failure<F<S>,I<S>,<S as inverse::Services>::ReturnPacket,<S as inverse::Services>::OutputPacket,E<S>>),

@@ -45,8 +45,7 @@ impl ExpectedCondition {
                 if !enabled { return Err("The saved voice target has no enabled canvas source.".into()); }
                 let experimental=crate::preset::experimental_canvas_metadata(&preset.document)?;
                 let mix = if experimental.is_some_and(|value|value.enabled) {
-                    // Validate the same complete 128D source payload and control ranges.
-                    // The separately retained host embedding remains authoritative.
+                    // The host embedding takes precedence over the preset.
                     let mut selected = false;
                     let mut weights = Vec::new();
                     let mut blends = Vec::new();

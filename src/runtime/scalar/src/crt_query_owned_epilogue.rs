@@ -20,7 +20,7 @@ pub struct SourceCrtQueryEpilogueBindings<P, S, R> {
     pub actual_epilogue: fn(&R) -> SourceCrtQueryEpilogueCompleted,
     pub owned_epilogue: fn(&P, &S) -> Option<SourceCrtQueryEpilogueCompleted>,
 }
-#[must_use = "retain completed actual restore/native/frame/FP/stack resources before RET"]
+#[must_use]
 pub struct SourceCrtQueryEpilogueRecord<P, S, R> {
     pub actual: R,
     pub bindings: SourceCrtQueryEpilogueBindings<P, S, R>,
@@ -30,7 +30,7 @@ pub struct SourceCrtQueryEpilogueRecord<P, S, R> {
 impl<P, S, R> SourceCrtQueryEpilogueRecord<P, S, R> {
     fn source(&self) -> SourceCrtQueryReceipt { (self.bindings.actual_epilogue)(&self.actual).source }
 }
-#[must_use = "retain stopped original query, actual restore owner and advanced prefix"]
+#[must_use]
 pub enum SourceCrtQueryEpilogueFailure<P, S, H, R> {
     Prefix {
         owner: SourceCrtQueryOwned<P, S, H>, actual: R,
@@ -42,7 +42,7 @@ pub enum SourceCrtQueryEpilogueFailure<P, S, H, R> {
     Source(SourceCrtNativeReturnFailure<SourceCrtQueryOwned<P, S, H>,
         SourceCrtQueryReceiptError<SourceCrtQueryEpilogueRecord<P, S, R>>>),
 }
-#[must_use = "retain actual rejected restore without repeating the epilogue or its reads"]
+#[must_use]
 pub enum SourceCrtQueryEpilogueRejection<P, S, R> {
     Prefix {
         actual: R, bindings: SourceCrtQueryEpilogueBindings<P, S, R>,

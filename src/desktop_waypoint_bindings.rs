@@ -1,5 +1,4 @@
-﻿//! Preserve waypoint key identity when route numbers change.
-use serde_json::{Value, json};
+﻿use serde_json::{Value, json};
 
 fn supported(text: &str) -> Option<u8> {
     let bytes=text.as_bytes();

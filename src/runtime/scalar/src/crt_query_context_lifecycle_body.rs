@@ -4,7 +4,7 @@ use super::super::super::crt_query_initialization::{SourceCrtQueryInitialization
 use super::super::super::crt_query_initialization_body::{SourceCrtQueryInitializationBodyBindings,
     SourceCrtQueryInitializationBodyCapsule};
 
-#[must_use = "retain private body/provider/storage/two child caps and exact admission facts"]
+#[must_use]
 pub struct SourceCrtContextLifecycleBodyReceipt<D, P, S> {
     pub body: D, pub bindings: SourceCrtQueryInitializationBodyBindings<D, P, S>,
     pub pending: Option<SourceCrtQueryInitializationProgress>,

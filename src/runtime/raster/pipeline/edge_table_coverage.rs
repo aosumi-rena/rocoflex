@@ -9,7 +9,7 @@ pub struct Progress {
     pub current_x:Option<i32>,pub accumulated:i32,pub end_pixel:Option<i32>,pub first_pixel:Option<i32>,
     pub level:Option<i32>,pub next_x:Option<i32>,pub pending:Option<Emission>,pub completed_emissions:usize,
 }
-#[must_use="borrowed original row and stopped scanner state must be retained"]
+#[must_use]
 pub struct Walker<'a> {entries:Entries<'a>,source_row:Option<&'a Row>,progress:Progress}
 enum Entries<'a> {Borrowed(&'a [[i32;2]]),Span([[i32;2];2])}
 impl Entries<'_> {
@@ -63,7 +63,7 @@ impl<'a> Walker<'a> {
     }
 }
 pub struct Completed<'a> {pub walker:Walker<'a>}
-#[must_use="retain SAME borrowed row, failed call and original advanced emitter"]
+#[must_use]
 pub struct Failure<'a,E> {pub walker:Walker<'a>,pub error:E}
 pub fn walk_ordered<'a,E>(entries:&'a [[i32;2]],emitter:&mut impl FnMut(CoverageEvent,bool)->Result<(),E>)
     ->Result<Completed<'a>,Failure<'a,E>>

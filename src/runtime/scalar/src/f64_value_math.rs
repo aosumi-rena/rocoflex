@@ -68,19 +68,19 @@ pub enum SourceF64ValueError {
 impl SourceF64ValueError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed { .. } => "F64 value service requires explicit IntelSdm architecture",
-            Self::UnsupportedEnvironment { .. } => "F64 value service requires strict RNE/allmasked/gradual state",
-            Self::AlreadyFailed(_) => "F64 value service stopped after its retained original failure",
+            Self::ArchitectureNotClosed { .. } => "Unsupported double-precision architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::AlreadyFailed(_) => "Previous double-precision operation failed",
             Self::OperationFailed(failure) => match failure.cause {
-                SourceF64ValueCause::UnsupportedEnvironment => "F64 value operation controls left the admitted profile",
-                SourceF64ValueCause::AlignmentRequired(_) => "F64 value exact aligned continuation required",
-                SourceF64ValueCause::RaisedStatusRequired { .. } => "F64 value candidate status not admitted",
-                SourceF64ValueCause::TrapRequired { .. } => "F64 value unmasked instruction continuation required",
-                SourceF64ValueCause::CandidateRequired => "F64 value source candidate continuation required",
-                SourceF64ValueCause::ComparisonMaskRequired { .. } => "LT_OS candidate is not the literal full64 mask",
-                SourceF64ValueCause::Conversion(_) => "F64 value borrowed narrowing continuation required",
+                SourceF64ValueCause::UnsupportedEnvironment => "Floating-point controls changed during evaluation",
+                SourceF64ValueCause::AlignmentRequired(_) => "Aligned arithmetic unavailable",
+                SourceF64ValueCause::RaisedStatusRequired { .. } => "Unsupported floating-point result status",
+                SourceF64ValueCause::TrapRequired { .. } => "Floating-point trap handler required",
+                SourceF64ValueCause::CandidateRequired => "Double-precision evaluation incomplete",
+                SourceF64ValueCause::ComparisonMaskRequired { .. } => "Invalid comparison mask",
+                SourceF64ValueCause::Conversion(_) => "Double-to-single conversion incomplete",
                 SourceF64ValueCause::PhaseWordZero(error) => error.reason(),
-                SourceF64ValueCause::PhaseNonzero(_) => "F64 value explicit nonzero source phase continuation required",
+                SourceF64ValueCause::PhaseNonzero(_) => "Phase evaluation incomplete",
             },
         }
     }

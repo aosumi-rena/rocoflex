@@ -17,7 +17,7 @@ pub enum SourceCrtQueryHelperRejection<P, S> {
         observed_call: SourceCrtQueryCallEnvelope, observed_ret: SourceCrtNativeRetObservation,
         actual_rbx_rdi: (u64, u64), source: Option<SourceCrtQueryResolveError> },
 }
-#[must_use = "retain every prior rejected helper/native/advanced prefix through correction"]
+#[must_use]
 pub struct SourceCrtQueryHelperRejectedHistory<CH, P, S> {
     pub previous: CH, pub rejection: SourceCrtQueryHelperRejection<P, S>,
     pub admitted_call: Option<SourceCrtQueryCallEnvelope>,

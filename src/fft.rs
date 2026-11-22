@@ -1,7 +1,4 @@
-﻿//! Real FFT adapted from Takuya Ooura's General Purpose FFT Package.
-//! Copyright Takuya OOURA, 1996-2001. See ../licenses/Ooura.txt.
-//! One retained source contains the existing forward and inverse bodies.
-//! Inverse output is unscaled; the filter applies its separate 2/N factor.
+﻿//! FFT adapted from Takuya Ooura. Copyright Takuya OOURA, 1996-2001.
 #[path = "runtime/fft/native_fft.rs"]
 mod source;
 pub use source::{rdft_forward, rdft_inverse as rdft_inverse512, rdft_inverse_supported};

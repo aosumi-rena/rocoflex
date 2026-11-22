@@ -21,7 +21,7 @@ impl Completed {
         let Self {row,scratch,progress:_}=self;drop(scratch);row
     }
 }
-#[must_use="retain same input rows/scratch and original advanced capacity; no replay"]
+#[must_use]
 pub struct Failure<'a> {
     pub left:&'a Row,pub right:&'a Row,pub fixed_right_bound:i32,
     pub scratch:Scratch,pub progress:Progress,pub error:Error,

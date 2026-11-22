@@ -53,7 +53,7 @@ pub struct NormalReturn<I,R,O> {
     pub observed: inverse::Observation,
     pub returned: Option<Returned<I,R>>, pub output: Option<Output<I,O>>,
 }
-#[must_use = "partial actual call effects/resources remain with SAME Frame"]
+#[must_use]
 pub struct CallFailure<I,R,O,E> {
     pub error: E, pub observed_normal_return: Option<inverse::Observation>,
     pub returned: Option<Returned<I,R>>, pub output: Option<Output<I,O>>,
@@ -116,7 +116,7 @@ pub struct State<F,I,R,O> {
     pub frame:F,pub prefix:PrefixProgress,pub inverse:inverse::Progress<I>,
     pub progress:Progress<I>,pub returned:Option<Returned<I,R>>,pub output:Option<Output<I,O>>,
 }
-#[must_use = "next actual source body remains REQUIRED; not shader normal return"]
+#[must_use]
 pub struct Required<F,I,R,O> { pub state:State<F,I,R,O>,pub next_rva:u32 }
 #[must_use]
 pub struct Failure<F,I,R,O,E> { pub state:State<F,I,R,O>,pub cause:Cause<E> }

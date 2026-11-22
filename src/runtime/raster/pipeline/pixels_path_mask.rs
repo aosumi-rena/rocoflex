@@ -10,17 +10,17 @@ pub struct Progress {
     pub tests:[Option<bool>;8],pub rejected:Option<Rejection>,pub scan:Option<edge_table::path_source::Progress>,
 }
 pub enum Cause<'p,E> {Bounds(rectangle::bounds::Failure<E>),Scan(edge_table::path_source::Failure<'p,E>)}
-#[must_use="table is produced only after actual bounds/rejections/scan; None is an actual rejection"]
+#[must_use]
 pub struct Completed<'p> {
     pub path:&'p path::Path,pub clip:[i32;4],pub affine_words:[u32;6],
     pub table:Option<edge_table::EdgeTable>,pub progress:Progress,
 }
-#[must_use="retain SAME input Path, partial bounds/scan/table and advanced caller service; no replay"]
+#[must_use]
 pub struct Failure<'p,E=core::convert::Infallible> {
     pub path:&'p path::Path,pub clip:[i32;4],pub affine_words:[u32;6],pub progress:Progress,pub cause:Cause<'p,E>,
 }
 pub enum TerminalCause<E> {Bounds(rectangle::bounds::Failure<E>),Scan(edge_table::path_source::TerminalFailure<E>)}
-#[must_use="retain SAME input and numeric owners; terminal graph cannot resume"]
+#[must_use]
 pub struct TerminalFailure<E> {
     clip:[i32;4],affine_words:[u32;6],progress:Progress,cause:TerminalCause<E>,
 }

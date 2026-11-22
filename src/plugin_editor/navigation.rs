@@ -1,5 +1,4 @@
-﻿//! 3D view key ownership, independent of HWNDs and event delivery.
-use eframe::egui::{Key, Modifiers};
+﻿use eframe::egui::{Key, Modifiers};
 use std::collections::BTreeSet;
 
 pub(super) fn navigation_candidate(key:Key)->bool {
@@ -15,13 +14,10 @@ pub(super) fn navigation_key(key:Key,modifiers:Modifiers)->bool {
         (modifiers.ctrl || modifiers.shift) && matches!(key,Key::Plus|Key::Equals|Key::Minus)
     }
 }
-/// A host can report the shifted glyph on down and unshifted glyph on up.
-/// Canonicalize the zero-code main-keyboard variants; keypad codes stay distinct.
+// Some hosts change the shifted symbol between key down and key up.
 pub(super) fn main_symbol(unicode:u16)->Option<Key> {
     match unicode {0x2b|0x3d=>Some(Key::Equals),0x2d|0x5f=>Some(Key::Minus),_=>None}
 }
-/// Navigation batches belong to one focus/document owner. Overflow disables
-/// further admission instead of reusing an old epoch.
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(super) struct NavigationTag {epoch:Option<u64>,owner:bool}
 #[derive(Clone,Copy)]

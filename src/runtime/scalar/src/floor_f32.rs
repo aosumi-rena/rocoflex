@@ -31,10 +31,10 @@ pub struct SourceFloorArithmeticAttempt {
 impl SourceFloorF32Error {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "580388 requires explicit Intel instruction semantics",
-            Self::SharedCore { .. } => "5803fb shared legacy SUBSS service required",
-            Self::LogicalStateRequired { .. } => "580388 returned scalar state is outside logical admission",
-            Self::TrapRequired { .. } => "5803fb actual scalar trap continuation required",
+            Self::ArchitectureNotClosed => "Unsupported rounding architecture",
+            Self::SharedCore { .. } => "Scalar subtraction unavailable",
+            Self::LogicalStateRequired { .. } => "Invalid rounding result state",
+            Self::TrapRequired { .. } => "Rounding trap handler required",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

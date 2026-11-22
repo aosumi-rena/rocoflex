@@ -55,17 +55,17 @@ impl SourceCoefficientScaledExpError {
     pub fn reason(&self) -> &'static str {
         match &self.cause {
             SourceCoefficientScaledExpCause::ArchitectureNotClosed { .. } =>
-                "562834 requires explicit Intel instruction semantics",
+                "Unsupported exponential architecture",
             SourceCoefficientScaledExpCause::UnsupportedEnvironment { .. } =>
-                "562834 requires RNE/all-masked/gradual logical controls",
+                "Unsupported floating-point controls",
             SourceCoefficientScaledExpCause::Primitive(_) =>
-                "562834 canonical scalar primitive admission is required",
+                "Scalar arithmetic unavailable",
             SourceCoefficientScaledExpCause::Power(_) =>
-                "562834 existing source boundary or integer scale requirement",
+                "Exponent scaling unavailable",
             SourceCoefficientScaledExpCause::OrdinaryDomain(_) =>
-                "562834 remaining ordinary operand domain is required",
+                "Operand outside exponential range",
             SourceCoefficientScaledExpCause::Ordinary(_) =>
-                "562834 ordinary operation requires its retained typed continuation",
+                "Exponential operation incomplete",
         }
     }
     pub fn known_advanced_state(&self, _entry: ExplicitExceptionState) -> ExplicitExceptionState {

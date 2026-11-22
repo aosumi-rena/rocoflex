@@ -9,7 +9,6 @@
 #include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/vsttypes.h"
 
-// Bridges are component-local and are never serialized or sent to a host.
 extern "C" {
 struct RocoPlugin;
 struct RocoCondition {
@@ -20,7 +19,7 @@ struct RocoCondition {
     float canvas[128];
 };
 
-// Caller zeroes preparation output; Rust clears failures. Output policy: 0 invalid, 1 fixed, 2 prepared delay.
+// Output policy: 0 invalid, 1 fixed delay, 2 prepared delay.
 enum RocoLatencyInputPolicy : uint32_t { RocoFixed6000 = 0, RocoPreparedCount = 1 };
 struct RocoPrepareInfo { uint32_t delay_samples; uint32_t policy; };
 RocoPlugin* roco_plugin_create(void);
@@ -54,13 +53,12 @@ int32_t roco_editor_set_input_pitch(RocoEditor* editor, uint64_t word);
 int32_t roco_editor_resize(RocoEditor* editor, uint32_t width, uint32_t height);
 // Host scale replaces native DPI; zero restores it. GUI thread only.
 int32_t roco_editor_set_content_scale(RocoEditor* editor, float factor);
-// GUI-thread staging: 0 unhandled, 1 handled with result, -2 invalid; C++ owns BeginPaint/EndPaint.
+// C++ owns BeginPaint/EndPaint. Return 0 for unhandled, 1 for handled, -2 for invalid.
 int32_t roco_editor_window_message(RocoEditor* editor, uint32_t message,
     uintptr_t wparam, intptr_t lparam, intptr_t* result);
-// Keys use VST SDK, not Win32, codes and modifiers: 1 handled, 0 unhandled, -2 invalid.
+// VST key codes. Return 1 for handled, 0 for unhandled, -2 for invalid.
 int32_t roco_editor_host_key(RocoEditor* editor, uint16_t unicode,
     int16_t vst_keycode, int16_t vst_modifiers, uint32_t is_down);
-// Non-dropping owner-thread cancellation is safe inside an editor callback.
 int32_t roco_editor_cancel(RocoEditor* editor);
 void roco_editor_close(RocoEditor* editor);
 uint64_t roco_editor_state_revision(const RocoEditor* editor);
@@ -155,7 +153,6 @@ inline bool graphReprepareRequired(const PluginState& before,const PluginState& 
 }
 static_assert(sizeof(RocoQualityChoice)==8 && alignof(RocoQualityChoice)==4);
 
-// Live packets carry this saved-state body; failed decode leaves state untouched.
 bool encodeState(const PluginState& state, std::vector<uint8_t>& bytes);
 bool decodeState(const void* bytes, size_t size, PluginState& state);
 bool writeState(Steinberg::IBStream* stream, const PluginState& state);

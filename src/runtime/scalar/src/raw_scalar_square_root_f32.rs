@@ -15,8 +15,8 @@ pub enum SourceRawSqrtssError {
 impl SourceRawSqrtssError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "SQRTSS requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::CandidateRequired { .. } => "SQRTSS candidate/exception continuation is not closed",
+            Self::ControlRequired { .. } => "Unsupported single-precision square root mode",
+            Self::CandidateRequired { .. } => "Single-precision square root incomplete",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

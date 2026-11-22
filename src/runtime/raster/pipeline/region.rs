@@ -10,7 +10,7 @@ pub struct PairProgress {
     pub candidate:Option<[i32;4]>,pub visited_pairs:usize,pub appended:usize,
 }
 pub struct PairCompleted {pub present:bool,pub progress:PairProgress}
-#[must_use="SAME supplied lists stay with caller; partial replacement is not a rollback or retry"]
+#[must_use]
 pub struct PairFailure {pub replacement:Rectangles,pub progress:PairProgress,pub error:Error}
 impl Rectangles {
     fn empty() -> Self { Self { entries: Vec::new(), source_capacity: 0 } }

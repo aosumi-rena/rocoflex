@@ -28,15 +28,15 @@ pub enum VorbisScalarError {
 impl VorbisScalarError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "explicit arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "explicit source state is not RNE/all-masked/gradual",
-            Self::BaseOutsideIntegral24Domain { .. } => "584fc0 base is outside positive integral24 codebook domain",
-            Self::ExponentOutsideCodebookDomain { .. } => "584fc0 exponent is outside positive codebook domain",
-            Self::ScaleValueOutsideSigned21Domain { .. } => "581ea0 value is outside signed integral21 packed domain",
-            Self::ScaleShiftOutside63Domain { .. } => "581ea0 shift is outside packed [-63,63] domain",
-            Self::ArctangentOutsideNonnegativeNormal32Domain { .. } => "57da70 input is outside +zero/positive-normal/<32 domain",
+            Self::ArchitectureNotClosed => "Unsupported power architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::BaseOutsideIntegral24Domain { .. } => "Invalid codebook power base",
+            Self::ExponentOutsideCodebookDomain { .. } => "Invalid codebook power exponent",
+            Self::ScaleValueOutsideSigned21Domain { .. } => "Packed integer outside the supported range",
+            Self::ScaleShiftOutside63Domain { .. } => "Packed shift outside the supported range",
+            Self::ArctangentOutsideNonnegativeNormal32Domain { .. } => "Square root input outside the supported range",
             Self::ArithmeticRequired { operation, .. } | Self::SourceContinuationRequired { operation, .. } => operation,
-            Self::ConversionRequired(_) => "source scalar final F64-to-F32 conversion required",
+            Self::ConversionRequired(_) => "Double-to-single conversion required",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState {
@@ -112,57 +112,57 @@ impl SourceVorbisScalarMath {
         let integer_exponent = ((base_wide >> 52) & 0x7ff) as u32 - 1023;
         let exponent_count = if integer_exponent == 0 { 0 }
             else { round_exact_normal_u128(u128::from(integer_exponent), 0).0 };
-        let delta = arithmetic.subtract("584fc0/table SUBSD", rounded, normalized)?;
-        let residual = arithmetic.multiply("584fc0/table reciprocal MULSD", delta, POW_RECIPROCAL[index])?;
+        let delta = arithmetic.subtract("table SUBSD", rounded, normalized)?;
+        let residual = arithmetic.multiply("table reciprocal MULSD", delta, POW_RECIPROCAL[index])?;
         let correction = if fused {
-            let polynomial = arithmetic.fma("584fc0/log first FMA", LOG_THIRD, residual, POLY_HALF.to_bits())?;
-            let polynomial = arithmetic.fma("584fc0/log second FMA", polynomial, residual, ONE)?;
-            arithmetic.multiply("584fc0/log residual MULSD", residual, polynomial)?
+            let polynomial = arithmetic.fma("log first FMA", LOG_THIRD, residual, POLY_HALF.to_bits())?;
+            let polynomial = arithmetic.fma("log second FMA", polynomial, residual, ONE)?;
+            arithmetic.multiply("log residual MULSD", residual, polynomial)?
         } else {
-            let polynomial = arithmetic.multiply("584fc0/log coefficient MULSD", LOG_THIRD, residual)?;
-            let square = arithmetic.multiply("584fc0/log square MULSD", residual, residual)?;
-            let polynomial = arithmetic.add("584fc0/log polynomial ADDSD", polynomial, POLY_HALF.to_bits())?;
-            let product = arithmetic.multiply("584fc0/log polynomial MULSD", square, polynomial)?;
-            arithmetic.add("584fc0/log residual ADDSD", product, residual)?
+            let polynomial = arithmetic.multiply("log coefficient MULSD", LOG_THIRD, residual)?;
+            let square = arithmetic.multiply("log square MULSD", residual, residual)?;
+            let polynomial = arithmetic.add("log polynomial ADDSD", polynomial, POLY_HALF.to_bits())?;
+            let product = arithmetic.multiply("log polynomial MULSD", square, polynomial)?;
+            arithmetic.add("log residual ADDSD", product, residual)?
         };
-        let logarithm = arithmetic.multiply("584fc0/log exponent MULSD", exponent_count, LN2)?;
-        let logarithm = arithmetic.add("584fc0/log table ADDSD", logarithm, POW_LOG[index])?;
-        let logarithm = arithmetic.subtract("584fc0/log correction SUBSD", logarithm, correction)?;
-        let powered_log = arithmetic.multiply("584fc0/exponent MULSD", exponent_wide, logarithm)?;
+        let logarithm = arithmetic.multiply("log exponent MULSD", exponent_count, LN2)?;
+        let logarithm = arithmetic.add("log table ADDSD", logarithm, POW_LOG[index])?;
+        let logarithm = arithmetic.subtract("log correction SUBSD", logarithm, correction)?;
+        let powered_log = arithmetic.multiply("exponent MULSD", exponent_wide, logarithm)?;
 
         if powered_log >> 63 != 0 || powered_log > UPPER_RANGE {
-            return Err(VorbisScalarError::SourceContinuationRequired { operation: "584fc0/range helper required", advanced: arithmetic.state });
+            return Err(VorbisScalarError::SourceContinuationRequired { operation: "range helper required", advanced: arithmetic.state });
         }
-        let scaled = arithmetic.multiply("584fc0/packed LOG2_64 MULPD low", powered_log, LOG2_64.to_bits())?;
+        let scaled = arithmetic.multiply("packed LOG2_64 MULPD low", powered_log, LOG2_64.to_bits())?;
 
         let (count, flags) = rne_i32_lane(scaled);
         arithmetic.state = arithmetic.state.with_source_status(flags);
         if !(0..=2047).contains(&count) {
-            return Err(VorbisScalarError::SourceContinuationRequired { operation: "584fc0/codebook count bound required", advanced: arithmetic.state });
+            return Err(VorbisScalarError::SourceContinuationRequired { operation: "codebook count bound required", advanced: arithmetic.state });
         }
         let count_wide = if count == 0 { 0 } else { round_exact_normal_u128(count as u128, 0).0 };
         let remainder = if fused {
-            arithmetic.fma("584fc0/reduction FNMADD", count_wide ^ SIGN, LN2_DIV64.to_bits(), powered_log)?
+            arithmetic.fma("reduction FNMADD", count_wide ^ SIGN, LN2_DIV64.to_bits(), powered_log)?
         } else {
-            let product = arithmetic.multiply("584fc0/reduction count MULSD", count_wide, LN2_DIV64.to_bits())?;
-            arithmetic.subtract("584fc0/reduction SUBSD", powered_log, product)?
+            let product = arithmetic.multiply("reduction count MULSD", count_wide, LN2_DIV64.to_bits())?;
+            arithmetic.subtract("reduction SUBSD", powered_log, product)?
         };
         let reduced = if fused {
-            let polynomial = arithmetic.fma("584fc0/exp first FMA", POLY_THIRD.to_bits(), remainder, POLY_HALF.to_bits())?;
-            let polynomial = arithmetic.fma("584fc0/exp second FMA", polynomial, remainder, ONE)?;
-            arithmetic.multiply("584fc0/exp residual MULSD", remainder, polynomial)?
+            let polynomial = arithmetic.fma("exp first FMA", POLY_THIRD.to_bits(), remainder, POLY_HALF.to_bits())?;
+            let polynomial = arithmetic.fma("exp second FMA", polynomial, remainder, ONE)?;
+            arithmetic.multiply("exp residual MULSD", remainder, polynomial)?
         } else {
-            let polynomial = arithmetic.multiply("584fc0/exp coefficient MULSD", POLY_THIRD.to_bits(), remainder)?;
-            let square = arithmetic.multiply("584fc0/exp square MULSD", remainder, remainder)?;
-            let polynomial = arithmetic.add("584fc0/exp polynomial ADDSD", polynomial, POLY_HALF.to_bits())?;
-            let product = arithmetic.multiply("584fc0/exp polynomial MULSD", square, polynomial)?;
-            arithmetic.add("584fc0/exp residual ADDSD", product, remainder)?
+            let polynomial = arithmetic.multiply("exp coefficient MULSD", POLY_THIRD.to_bits(), remainder)?;
+            let square = arithmetic.multiply("exp square MULSD", remainder, remainder)?;
+            let polynomial = arithmetic.add("exp polynomial ADDSD", polynomial, POLY_HALF.to_bits())?;
+            let product = arithmetic.multiply("exp polynomial MULSD", square, polynomial)?;
+            arithmetic.add("exp residual ADDSD", product, remainder)?
         };
         let table = EXP_TABLE[(count as usize) & 63].to_bits();
-        let expanded = if fused { arithmetic.fma("584fc0/exp table FMA", reduced, table, table)? }
+        let expanded = if fused { arithmetic.fma("exp table FMA", reduced, table, table)? }
         else {
-            let product = arithmetic.multiply("584fc0/exp table MULSD", reduced, table)?;
-            arithmetic.add("584fc0/exp table ADDSD", product, table)?
+            let product = arithmetic.multiply("exp table MULSD", reduced, table)?;
+            arithmetic.add("exp table ADDSD", product, table)?
         };
 
         let wide = expanded.wrapping_add(((count >> 6) as u64) << 52);

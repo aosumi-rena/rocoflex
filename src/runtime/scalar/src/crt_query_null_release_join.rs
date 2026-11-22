@@ -6,11 +6,11 @@ use super::crt_query_return::{SourceCrtQueryCallerReturned, SourceCrtQueryCallEn
 use super::crt_storage_native_return::{SourceCrtNativeRetFrame, SourceCrtNativeRetObservation,
     validate_source_crt_native_ret};
 
-#[must_use = "retain all earlier allocation/initializer/native/frame/FP resources across NULL call"]
+#[must_use]
 pub struct SourceCrtQueryNullReleaseAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>, pub source: SourceCrtQueryContextProgress,
 }
-#[must_use = "retain rejected full NULL-call capsule and stopped original context"]
+#[must_use]
 pub struct SourceCrtQueryNullReleaseJoinError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>, pub pending: SourceCrtQueryContextProgress,
     pub actual_frame: SourceCrtNativeRetFrame, pub observed_call: SourceCrtQueryCallEnvelope,

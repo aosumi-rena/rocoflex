@@ -33,15 +33,15 @@ pub struct ReturnKey<I> {
 pub struct EffectsKey<I> {
     pub target: Target<I>, pub callee_frame: I, pub effects_identity: I,
 }
-#[must_use = "actual whole normal-return packet stays with its original frame"]
+#[must_use]
 pub struct Returned<I,P> { pub key: ReturnKey<I>, pub packet: P }
-#[must_use = "native output effects are separate from numerical inverse/normal-return evidence"]
+#[must_use]
 pub struct NativeEffects<I,P> { pub key: EffectsKey<I>, pub packet: P }
 #[must_use]
 pub struct NormalReturn<I,R,O> {
     pub observed: Observation, pub returned: Option<Returned<I,R>>, pub output: Option<NativeEffects<I,O>>,
 }
-#[must_use = "retain ALL partial call/output receipts and original provider error"]
+#[must_use]
 pub struct CallFailure<I,R,O,E> {
     pub error: E, pub actual_normal_return: Option<Observation>,
     pub returned: Option<Returned<I,R>>, pub output: Option<NativeEffects<I,O>>,
@@ -98,12 +98,12 @@ pub struct Progress<I> {
     pub retained: Option<Retained<I>>, pub pending_return_matches: Option<bool>, pub pending_output_matches: Option<bool>,
 }
 pub enum Cause<E> { Provider(E), Stopped(Stop) }
-#[must_use = "partial SAME frame/callee/descriptor/output effects cannot be retried or discarded"]
+#[must_use]
 pub struct Failure<F,I,R,O,E> {
     pub frame: F, pub prefix: PrefixProgress, pub progress: Progress<I>,
     pub returned: Option<Returned<I,R>>, pub output: Option<NativeEffects<I,O>>, pub cause: Cause<E>,
 }
-#[must_use = "next shader instructions/shared frame are REQUIRED; this is NOT shader completion/RET"]
+#[must_use]
 pub struct AfterReturn<F,I> {
     pub frame: F, pub prefix: PrefixProgress, pub progress: Progress<I>, pub next_rva: u32,
 }

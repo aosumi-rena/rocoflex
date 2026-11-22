@@ -64,7 +64,6 @@ public:
     std::uint32_t admitted() const noexcept { return word()&countMask; }
     bool closed() const noexcept { return (word()&closedBit)!=0; }
     bool quiescent() const noexcept { return word()==closedBit; }
-    // The lifecycle reservation owner publishes activation after quiescence under control_.
     void openQuiescent() noexcept { InterlockedExchange(&word_,0); }
     bool waitUntil(std::chrono::steady_clock::time_point deadline) noexcept {
         for (;;) {

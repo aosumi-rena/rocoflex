@@ -1,6 +1,4 @@
-﻿//! Input preferences have their own cross-process transaction and never carry
-//! unrelated application settings or credentials.
-use serde_json::{Value, json};
+﻿use serde_json::{Value, json};
 use std::{fs::{self, File, OpenOptions}, io::{Read, Write}, path::{Path, PathBuf}, sync::atomic::{AtomicU64, Ordering}};
 const NAME: &str = "input-bindings.json";
 const MAX_BYTES: u64 = 65_536;

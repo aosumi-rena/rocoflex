@@ -35,11 +35,11 @@ pub enum SourceFiniteTrigWordZeroError {
 impl SourceFiniteTrigWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::NonFiniteInput { .. } => "CPU0 finite trig requires non-CRT finite F32 input",
+            Self::NonFiniteInput { .. } => "Expected a finite trigonometric input",
             Self::Short(error) => error.reason(),
             Self::LargeSineKernel(error) => error.reason(),
-            Self::LargeSine(PhaseError::ConsumedUndefinedBitScan) => "CPU0 sine head consumed undefined zero BSR result",
-            Self::LargeSine(_) => "CPU0 sine head arithmetic/source continuation required",
+            Self::LargeSine(PhaseError::ConsumedUndefinedBitScan) => "Sine range reduction cannot bit-scan zero",
+            Self::LargeSine(_) => "Sine range reduction incomplete",
             Self::Cosine(error) => error.reason(),
         }
     }

@@ -25,8 +25,8 @@ pub enum SourceRawUcomissError {
 impl SourceRawUcomissError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "UCOMISS requires admitted explicit Intel/MXCSR/effective capabilities",
-            Self::CoreStatusRequired { .. } => "UCOMISS candidate status is outside invalid-or-denormal policy",
+            Self::ControlRequired { .. } => "Unsupported single-precision comparison mode",
+            Self::CoreStatusRequired { .. } => "Unsupported comparison result status",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

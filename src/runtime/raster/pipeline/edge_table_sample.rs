@@ -8,7 +8,7 @@ pub struct Progress {
     pub allocated_before:usize,pub allocated_after:usize,
 }
 #[derive(Debug)]
-#[must_use="SAME borrowed table retains advanced global metadata/rows on failure"]
+#[must_use]
 pub struct Failure {pub progress:Progress,pub error:Error}
 pub fn insert_source(table:&mut EdgeTable,row:usize,entry:[i32;2])->Result<Progress,Failure> {
     let mut progress=Progress {row,entry,step:Step::ReadCount,count_before:None,count_after:None,

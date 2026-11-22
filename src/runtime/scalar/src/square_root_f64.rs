@@ -12,8 +12,8 @@ pub enum SourceSqrtF64Error {
 impl SourceSqrtF64Error {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed => "SQRTSD explicit arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "SQRTSD state is not RNE/all-masked/gradual",
+            Self::ArchitectureNotClosed => "Unsupported square root architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
         }
     }
     pub fn known_advanced_state(self, entry: ExplicitExceptionState) -> ExplicitExceptionState { entry }

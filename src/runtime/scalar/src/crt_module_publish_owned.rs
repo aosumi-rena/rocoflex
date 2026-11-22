@@ -16,7 +16,7 @@ pub struct SourceCrtModulePublicationActual<R> {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtModulePublicationPhase { Ready, ActualCompletionRequired, Complete }
-#[must_use = "retain source cursor and all actual module/frame/FP/native resources"]
+#[must_use]
 pub struct SourceCrtModulePublicationBindFailure<M, P, S> {
     pub source: SourceCrtModulePublish59be59,
     pub module_owner: M,
@@ -39,27 +39,27 @@ pub enum SourceCrtModulePublicationError<E> {
 impl<E> SourceCrtModulePublicationError<E> {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::PhaseRequired { .. } => "owned module publication requires its current phase; no implicit native/atomic retry",
-            Self::ModuleWordRequired { .. } => "module resource must retain the same historical successful-load source word",
-            Self::Primitive(_) => "module publication primitive failed with actual module/cache/frame/FP resources retained",
-            Self::UnadoptedResourcesRequired => "additional actual module resources require explicit ownership continuation before another invocation",
-            Self::ResourceAlreadyReported { .. } => "module operation already has a resource prefix; actual continuation is required before any invocation",
-            Self::ResourcePrefixRequired { .. } => "actual module publication completion requires its owned resource prefix",
-            Self::ResourceSlotOccupied { .. } => "module publication service returned an additional resource for an occupied slot; both owners retained",
-            Self::ResourceReceiptRequired { .. } => "module publication receipt differs from its actual resource capsule projection",
-            Self::ActualPrefixRequired { .. } => "module publication actual receipt differs from the same owned frame prefix",
+            Self::PhaseRequired { .. } => "Invalid module publication phase",
+            Self::ModuleWordRequired { .. } => "Module handle differs from the loaded handle",
+            Self::Primitive(_) => "Module publication failed",
+            Self::UnadoptedResourcesRequired => "Module resources are still in use",
+            Self::ResourceAlreadyReported { .. } => "Module operation already started",
+            Self::ResourcePrefixRequired { .. } => "Missing module publication state",
+            Self::ResourceSlotOccupied { .. } => "Module resource slot is occupied",
+            Self::ResourceReceiptRequired { .. } => "Publication result refers to a different resource",
+            Self::ActualPrefixRequired { .. } => "Publication result refers to a different frame",
             Self::Source(error) => error.reason(),
         }
     }
 }
-#[must_use = "retain the entire module/cache/native/frame/FP continuation"]
+#[must_use]
 pub struct SourceCrtModulePublicationFailure<T, E> { pub owner: T, pub cause: E }
 pub enum SourceCrtModulePublicationResumeError<A, E> {
     NotPending { actual: A },
     Adapter { actual: A, cause: E },
     Validation(SourceCrtModulePublicationError<E>),
 }
-#[must_use = "retain loaded-module/cache/native resources and actual frame/FP prefix"]
+#[must_use]
 pub struct SourceCrtModulePublicationCompletion<M, R, P, S> {
     pub source: SourceCrtModulePublishCompletion,
     pub module_owner: M,
@@ -84,7 +84,7 @@ pub struct SourceCrtModulePublicationParts<M, R, P, S, E> {
     pub callbacks: SourceCrtModulePublicationCallbacks<M, R, P, S, E>,
 }
 
-#[must_use = "retain actual module/cache/native/frame/FP owners until explicit continuation"]
+#[must_use]
 pub struct SourceCrtOwnedModulePublication<M, R, P, S, E> {
     source: SourceCrtModulePublish59be59,
     module_owner: M,

@@ -276,7 +276,7 @@ macro_rules! bind_source_scalar_endpoint {
             }
             #[derive(Debug)]
             pub enum Error<E> {Scalar(scalar::SourceScalarF32StateError),Comparison(E)}
-            #[must_use = "SAME caller scalar owner retains advanced logical state/trap"]
+            #[must_use]
             pub struct Endpoint<'a,C:Comparisons> {
                 scalar:&'a mut scalar::SourceScalarF32WithState,comparisons:&'a mut C,
             }

@@ -62,7 +62,7 @@ pub enum SourceCrtIsaError {
 }
 impl SourceCrtIsaError {
     pub fn reason(self) -> &'static str {
-        "561dd4 supplied instruction/flags record does not match pending source read"
+        "Unexpected processor feature result"
     }
 }
 

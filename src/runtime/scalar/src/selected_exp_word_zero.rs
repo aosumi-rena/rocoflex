@@ -8,11 +8,11 @@ use super::vorbis_power::VorbisScalarError;
 pub use super::serial_exp::SOURCE_RADIAL_EXP_UPPER_F64;
 
 const SITES: SerialExpSites = SerialExpSites([
-    "57f948/word0 count split MULPD.low", "57f959/word0 remainder SUBPD.low",
-    "57f96e/word0 polynomial MULPD.low", "57f972/word0 square MULPD.low",
-    "57f976/word0 polynomial ADDPD.low", "57f97e/word0 correction MULPD.low",
-    "57f982/word0 reduced ADDPD.low", "57f997/word0 table MULPD.low",
-    "57f99b/word0 table ADDPD.low", "57f9a4/word0 binary scale MULPD.low",
+    "word0 count split MULPD.low", "word0 remainder SUBPD.low",
+    "word0 polynomial MULPD.low", "word0 square MULPD.low",
+    "word0 polynomial ADDPD.low", "word0 correction MULPD.low",
+    "word0 reduced ADDPD.low", "word0 table MULPD.low",
+    "word0 table ADDPD.low", "word0 binary scale MULPD.low",
 ]);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,13 +44,13 @@ pub struct SourceWordZeroExpCallReceipt {
 impl SourceWordZeroExpError {
     pub fn reason(&self) -> &'static str {
         match self {
-            Self::WordZeroRequired { .. } => "57f8e0 packed SSE body requires explicitly supplied word zero",
-            Self::ArchitectureNotClosed => "word-zero exp arithmetic architecture is not source-closed",
-            Self::UnsupportedEnvironment { .. } => "word-zero exp state is not RNE/all-masked/gradual",
-            Self::UpperLaneContinuationRequired { .. } => "word-zero exp original upper F64 is outside signed-zero/actual-radial admission",
-            Self::CallbackRequiredFromEntry { .. } => "57f8e0 range path requires explicit597c90 callback service",
+            Self::WordZeroRequired { .. } => "Expected the baseline exponential mode",
+            Self::ArchitectureNotClosed => "Unsupported exponential architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
+            Self::UpperLaneContinuationRequired { .. } => "Unsupported upper exponential lane",
+            Self::CallbackRequiredFromEntry { .. } => "Exponential range handler required",
             Self::Arithmetic(error) => error.reason(),
-            Self::MathError(_) => "57f8e0 explicit597c90 numeric callback continuation required",
+            Self::MathError(_) => "Exponential range handler incomplete",
         }
     }
     pub fn known_advanced_state(&self, entry: ExplicitExceptionState) -> ExplicitExceptionState {

@@ -1,6 +1,6 @@
 use super::*;
 
-#[must_use = "retain prior parent and completed child/heap/mode/handler/accessor/native resources"]
+#[must_use]
 pub struct SourceCrtContextAllocationHistory<P, S, H, CH, E, N> {
     pub parent: SourceCrtContextAllocationParent<P, S, H, E>,
     pub child_cursor: SourceCrtQueryCursor, pub child_history: CH,
@@ -10,7 +10,7 @@ pub struct SourceCrtContextAllocationHistory<P, S, H, CH, E, N> {
     pub actual_return: N, pub source_call: SourceCrtQueryCallEnvelope,
     pub parent_receipt: SourceCrtQueryCallerReceipt,
 }
-#[must_use = "retain ORIGINAL parent and whole advanced child capsule on rejection"]
+#[must_use]
 pub enum SourceCrtContextAllocationResumeFailure<P, S, H, CH, E, N> {
     ParentAuthority {
         actual: SourceCrtQueryReturned<P, S, CH, SourceCrtContextAllocationParent<P, S, H, E>, N>,

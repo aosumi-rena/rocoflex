@@ -16,8 +16,8 @@ pub enum SourceRawCvtsi2sdError {
 impl SourceRawCvtsi2sdError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "signed64 CVTSI2SD requires admitted explicit Intel/MXCSR/capabilities",
-            Self::CoreStatusRequired { .. } => "signed64 CVTSI2SD rounder status is outside precision-only policy",
+            Self::ControlRequired { .. } => "Unsupported integer-to-double conversion mode",
+            Self::CoreStatusRequired { .. } => "Unsupported conversion rounding status",
         }
     }
 

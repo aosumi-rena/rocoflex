@@ -32,7 +32,7 @@ pub struct PathRowsProgress {
 #[derive(Debug)]
 pub enum PathRowsCause {Table(Error),Sort(super::sort::Error)}
 #[derive(Debug)]
-#[must_use="SAME borrowed EdgeTable retains sorted/rewritten rows on failure"]
+#[must_use]
 pub struct PathRowsFailure {pub progress:PathRowsProgress,pub cause:PathRowsCause}
 
 pub fn collapse_path_rows_source(table:&mut EdgeTable,source_flag_32:u8)->Result<PathRowsProgress,PathRowsFailure> {

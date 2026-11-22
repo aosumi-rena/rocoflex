@@ -3,7 +3,7 @@ use super::super::crt_storage_native_return::validate_source_crt_native_ret;
 use super::super::crt_query_owned::{SourceCrtQueryOwned, SourceCrtQueryOwnedBindings};
 use super::transfer::SourceCrtHandlerQueryHistory;
 
-#[must_use = "retain stopped original owner and EVERY earlier rejected/partial/service resource"]
+#[must_use]
 pub struct SourceCrtHandlerAdmission<O, H> { owner: O, history: H }
 impl<O, F> SourceCrtHandlerAdmission<O, F> {
     pub fn from_actual_failure(failure: SourceCrtNativeReturnFailure<O, F>) -> Self {
@@ -76,17 +76,17 @@ pub enum SourceCrtHandlerPrefixCorrectionReason {
     ActualAdapterFailed, ActualRecordChanged, RetiredProofRequired,
     OriginalPendingRequired, ActualPrefixRequired, SourceContinuationRequired,
 }
-#[must_use = "retain actual correction/exception and stopped original owner"]
+#[must_use]
 pub struct SourceCrtHandlerPrefixCorrectionError<C, E> {
     pub actual: C, pub before: SourceCrtHandlerActualPrefix, pub after: SourceCrtHandlerActualPrefix,
     pub current: SourceCrtHandlerActualPrefix, pub reason: SourceCrtHandlerPrefixCorrectionReason,
     pub cause: Option<E>, pub source: Option<SourceCrtQueryCallocError>,
 }
-#[must_use = "retain original rejected RET/native resources and all actual prefix corrections"]
+#[must_use]
 pub struct SourceCrtHandlerCorrectedReturn<F, H, C> {
     pub rejected_return: F, pub previous_corrections: H, pub actual_correction: C,
 }
-#[must_use = "retain SAME failed RET capsule; this does not qualify partial RET as retired"]
+#[must_use]
 pub struct SourceCrtHandlerReturnCorrection<D, P, S, A, R, N, E, H = ()> {
     owner: SourceCrtHandlerEpilogueAccepted<D, P, S, A, R>,
     rejected: SourceCrtHandlerFrameReturnError<N, E>, history: H,

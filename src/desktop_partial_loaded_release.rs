@@ -25,7 +25,7 @@ pub enum Phase { Prelude, FirstRead, Strong, Payload, Weak, ControlStorage, Seco
 pub enum Issue<E> { AlreadyHalted, AlreadyReturned, RequiredService(E) }
 pub struct Stopped<C, B, S, E> { pub pending: SourceRelease<C, B, S>, pub issue: Issue<E> }
 
-#[must_use = "Keep partially released source/control/services; never recreate old ownership after Err."]
+#[must_use]
 pub struct SourceRelease<C, B, S> {
     source: C, services: S, kind: NodeKind, delete_flags: u32,
     phase: Phase, halted: bool, slot: Option<ControlSlot>, control: Option<B>,
@@ -132,7 +132,7 @@ pub enum ChildIssue<E> {
 pub struct ChildStopped<C, N, S, E> {
     pub pending: TrajectoryChildDrain<C, N, S>, pub issue: ChildIssue<E>,
 }
-#[must_use = "Keep source/services/detached child; captured traversal must not restart after refusal."]
+#[must_use]
 pub struct TrajectoryChildDrain<C, N, S> {
     source: C, services: S, phase: ChildPhase, halted: bool,
     initial_count: Option<u32>, remaining_indices: u32, tail_count: Option<u32>, child: Option<N>,
@@ -226,7 +226,7 @@ pub trait NameReleaseServices<C, B: Copy> {
 pub enum NamePhase { CurrentOwner, Atomic, Free, Returned }
 pub enum NameIssue<E> { AlreadyHalted, AlreadyReturned, RequiredService(E) }
 pub struct NameStopped<C, B, S, E> { pub pending: NameRelease<C, B, S>, pub issue: NameIssue<E> }
-#[must_use = "Keep the advanced source/name owner/services after partial release failure."]
+#[must_use]
 pub struct NameRelease<C, B, S> {
     source: C, services: S, phase: NamePhase, halted: bool,
     owner: Option<B>, old_word: Option<u32>,

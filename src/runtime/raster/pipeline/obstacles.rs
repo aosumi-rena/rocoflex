@@ -7,7 +7,7 @@ pub enum MathPhase {
     Inputs, AngleA([f32; 2]), AngleB([f32; 2]), DistanceA, DistanceB,
     Wrap, WrapDistance, Append, Complete,
 }
-#[must_use = "retain completed records and failing source stage; no replay"]
+#[must_use]
 pub struct MathFailure {
     pub cause: MathCause, pub partial: Output, pub segment: usize, pub phase: MathPhase,
 }

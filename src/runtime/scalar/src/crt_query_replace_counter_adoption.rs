@@ -9,7 +9,7 @@ pub struct SourceCrtReplaceCounterAdoption<D, P, S, W, A, F> {
 pub enum SourceCrtReplaceCounterAdoptionReason {
     AlreadyAttempted, HeldResourcesRemain, ActualReceiptRequired, OriginalSourceRequired, AdvancedPrefixRequired,
 }
-#[must_use = "retain actual whole-call/adoption/native owners with continuing original query"]
+#[must_use]
 pub struct SourceCrtReplaceCounterHistory<D, P, S, W, E, N, A, F> {
     pub whole_call: W, pub actual_entry: E, pub actual_ret: N, pub adoption_receipt: A,
     pub evidence: SourceCrtReplaceCounterEvidence,
@@ -24,7 +24,7 @@ impl<D, P, S, W, E, N, A, F> SourceCrtReplaceCounterHistory<D, P, S, W, E, N, A,
             actual_rbx: actual.actual_rbx, actual_rdi: actual.actual_rdi })
     }
 }
-#[must_use = "retain same stopped query/counter/call/native resources and advanced adoption errors"]
+#[must_use]
 pub enum SourceCrtReplaceCounterAdoptionFailure<D, P, S, H, W, E, N, A, F> {
     Service(SourceCrtReplaceCounterAdoptionServiceFailure<D, P, S, H, W, E, N, A, F>),
     Rejected(SourceCrtReplaceCounterAdoptionRejected<D, P, S, H, W, E, N, A, F>),
@@ -32,7 +32,7 @@ pub enum SourceCrtReplaceCounterAdoptionFailure<D, P, S, H, W, E, N, A, F> {
         SourceCrtQueryReceiptError<SourceCrtReplaceCounterHistory<D, P, S, W, E, N, A, F>>>),
 }
 
-#[must_use = "retain original adoption bindings and actual advanced service error"]
+#[must_use]
 pub struct SourceCrtReplaceCounterAdoptionServiceFailure<D, P, S, H, W, E, N, A, F> {
     pub(super) pending: SourceCrtReplaceCounterBound<D, P, S, H, W, E, N>,
     pub(super) adoption: SourceCrtReplaceCounterAdoption<D, P, S, W, A, F>,
@@ -42,7 +42,7 @@ impl<D, P, S, H, W, E, N, A, F> SourceCrtReplaceCounterAdoptionServiceFailure<D,
     pub fn pending(&self) -> &SourceCrtReplaceCounterBound<D, P, S, H, W, E, N> { &self.pending }
     pub fn error(&self) -> &F { &self.error }
 }
-#[must_use = "retain original adoption bindings and actual rejected ownership receipt"]
+#[must_use]
 pub struct SourceCrtReplaceCounterAdoptionRejected<D, P, S, H, W, E, N, A, F> {
     pub(super) pending: SourceCrtReplaceCounterBound<D, P, S, H, W, E, N>,
     pub(super) adoption: SourceCrtReplaceCounterAdoption<D, P, S, W, A, F>,

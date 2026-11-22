@@ -8,11 +8,11 @@ use super::crt_storage_native_return::{SourceCrtNativeRetFrame, SourceCrtNativeR
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SourceCrtQueryInitializationReturnedRegisters { pub rbx: u64, pub rsi: u64, pub rdi: u64, pub rbp: u64 }
-#[must_use = "retain SAME actual initialized-body/storage/two child caps/native/frame/FP/resource capsule"]
+#[must_use]
 pub struct SourceCrtQueryInitializationAccepted<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>, pub source: SourceCrtQueryContextProgress,
 }
-#[must_use = "retain rejected full initializer capsule and stopped original context"]
+#[must_use]
 pub struct SourceCrtQueryInitializationJoinError<P, S, H, T, N> {
     pub actual: SourceCrtQueryCallerReturned<P, S, H, T, N>, pub pending: SourceCrtQueryContextProgress,
     pub actual_frame: SourceCrtNativeRetFrame, pub observed_call: SourceCrtQueryCallEnvelope,

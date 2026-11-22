@@ -191,7 +191,7 @@ pub struct SourceCrtQueryOwnedBindings<P, S> {
     pub actual_frame: fn(&P, &S) -> SourceCrtNativeRetFrame,
     pub actual_receipt: fn(&P, &S) -> Option<SourceCrtQueryReceipt>,
 }
-#[must_use = "retain every actual query receipt and earlier native/frame/FP/resource owner"]
+#[must_use]
 pub struct SourceCrtQueryHistory<H, R> {
     pub previous: H,
     pub actual: R,
@@ -199,7 +199,7 @@ pub struct SourceCrtQueryHistory<H, R> {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtQueryReceiptReason { ActualRecordRequired, ActualPrefixRequired, ActualFrameRequired, SourceContinuationRequired }
-#[must_use = "retain raw rejected resource/exception receipt and SAME advanced owner"]
+#[must_use]
 pub struct SourceCrtQueryReceiptError<R> {
     pub actual: R,
     pub supplied: SourceCrtQueryReceipt,
@@ -209,15 +209,15 @@ pub struct SourceCrtQueryReceiptError<R> {
     pub reason: SourceCrtQueryReceiptReason,
     pub source: Option<SourceCrtQuerySourceError>,
 }
-#[must_use = "retain rejected raw resources and all earlier history without replay"]
+#[must_use]
 pub struct SourceCrtQueryRejectedHistory<H, R> { pub previous: H, pub rejected: SourceCrtQueryReceiptError<R> }
-#[must_use = "retain exact failed service resources/unknown prefix without a fabricated normal-return packet"]
+#[must_use]
 pub struct SourceCrtQueryServiceFailureHistory<H, F> {
     pub previous: H,
     pub actual_failure: F,
     pub pending: Option<SourceCrtQueryRequest>,
 }
-#[must_use = "retain actual corrected pre-RET prefix and prior query resources"]
+#[must_use]
 pub struct SourceCrtQueryRetPrefixHistory<H, R> {
     pub previous: H,
     pub actual: R,
@@ -230,7 +230,7 @@ pub struct SourceCrtQueryRetPrefixError<R> {
     pub required: Option<SourceCrtNativeRetFrame>,
 }
 
-#[must_use = "retain SAME query source cursor, frame/FP/protected/native/resources"]
+#[must_use]
 pub struct SourceCrtQueryOwned<P, S, H = ()> {
     cursor: SourceCrtQueryCursor,
     pub prefix: P,
@@ -332,7 +332,7 @@ impl<P, S, H> SourceCrtQueryOwned<P, S, H> {
             history: SourceCrtQueryRetPrefixHistory { previous: self.history, actual, actual_frame } })
     }
 }
-#[must_use = "retain stopped original query cursor and ALL before-RET owners"]
+#[must_use]
 pub struct SourceCrtQueryBeforeRet<P, S, H> {
     pub(super) cursor: SourceCrtQueryCursor,
     pub prefix: P,

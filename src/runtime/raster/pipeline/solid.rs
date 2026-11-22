@@ -266,7 +266,7 @@ pub enum ScheduledEdgePaint<C> {
     Superseded { reason: C, progress: EdgePaintProgress },
 }
 pub enum EdgePaintCause<'a> {Source(Error),Coverage(super::edge_table::coverage::Failure<'a,Error>)}
-#[must_use="retain same table/row and original partially written bytes/painter; do not replay"]
+#[must_use]
 pub struct EdgePaintFailure<'a> {
     pub table:&'a super::edge_table::EdgeTable,pub progress:EdgePaintProgress,pub cause:EdgePaintCause<'a>,
 }

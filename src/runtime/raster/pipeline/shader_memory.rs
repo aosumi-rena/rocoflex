@@ -66,7 +66,7 @@ impl DescriptorValues {
     }
 }
 
-#[must_use="same borrowed target retains all earlier writes and stopped progress"]
+#[must_use]
 pub struct PixelMaps<'a> {
     source:&'a [u8],target:&'a mut [u8],source_descriptor:DescriptorValues,target_descriptor:DescriptorValues,
     accesses:Accesses,
@@ -120,7 +120,7 @@ impl<'a> PixelMaps<'a> {
     }
 }
 
-#[must_use="borrowed descriptor contains any preceding partial source effects"]
+#[must_use]
 pub struct DescriptorBytes<'a> {bytes:&'a mut [u8],accesses:Accesses}
 impl<'a> DescriptorBytes<'a> {
     pub fn bind(bytes:&'a mut [u8],budget:Budget)->Self {Self {bytes,accesses:Accesses::new(budget)}}

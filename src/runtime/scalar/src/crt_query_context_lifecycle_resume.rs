@@ -4,7 +4,7 @@ pub enum SourceCrtContextLifecycleReturnBindings<P, S> {
     Initialization(fn(&P, &S) -> SourceCrtQueryInitializationReturnedRegisters),
     NullRelease(fn(&P, &S) -> (u64, u64, u64)),
 }
-#[must_use = "retain prior allocation/context and completed initialization/NULL child resources"]
+#[must_use]
 pub struct SourceCrtContextLifecycleHistory<P, S, H, CH, E, N> {
     pub parent: SourceCrtContextLifecycleParent<P, S, H, E>,
     pub child_cursor: SourceCrtQueryCursor, pub child_history: CH,
@@ -14,7 +14,7 @@ pub struct SourceCrtContextLifecycleHistory<P, S, H, CH, E, N> {
     pub actual_return: N, pub source_call: SourceCrtQueryCallEnvelope,
     pub parent_receipt: SourceCrtQueryCallerReceipt,
 }
-#[must_use = "retain original stopped parent and entire advanced child/provider capsule"]
+#[must_use]
 pub enum SourceCrtContextLifecycleResumeFailure<P, S, H, CH, E, N> {
     ParentAuthority {
         actual: SourceCrtQueryReturned<P, S, CH, SourceCrtContextLifecycleParent<P, S, H, E>, N>,

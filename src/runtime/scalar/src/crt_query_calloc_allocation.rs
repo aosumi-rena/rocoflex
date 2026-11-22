@@ -3,7 +3,7 @@ use super::crt_query_calloc::{SourceCrtQueryCalloc58f074, SourceCrtQueryCallocPr
 use super::crt_storage_native_return::SourceCrtNativeRetFrame;
 use super::crt_storage_owned_free::SourceCrtStorageActualAllocation;
 
-#[must_use = "retain actual physical H on every rejected protected continuation"]
+#[must_use]
 pub enum SourceCrtCallocPhysicalReturn<A> { Null, Allocated(A) }
 pub struct SourceCrtCallocAllocationBindings<A, P, S, R> {
 
@@ -13,7 +13,7 @@ pub struct SourceCrtCallocAllocationBindings<A, P, S, R> {
     pub owned_receipt: fn(&P, &S) -> Option<SourceCrtQueryCallocReceipt>,
     pub actual_receipt: fn(&R) -> SourceCrtQueryCallocReceipt,
 }
-#[must_use = "retain actual physical H/protected continuation/full frame/FP/native resources"]
+#[must_use]
 pub struct SourceCrtCallocAllocationCapsule<A, P, S, R> {
     pub physical_return: SourceCrtCallocPhysicalReturn<A>,
     pub prefix: P,
@@ -21,12 +21,12 @@ pub struct SourceCrtCallocAllocationCapsule<A, P, S, R> {
     pub actual_receipt: R,
     pub bindings: SourceCrtCallocAllocationBindings<A, P, S, R>,
 }
-#[must_use = "retain physical allocation or actual NULL prefix through caller's next source step"]
+#[must_use]
 pub struct SourceCrtCallocAllocationAccepted<A, P, S, R> {
     pub actual: SourceCrtCallocAllocationCapsule<A, P, S, R>,
     pub source: SourceCrtQueryCallocProgress,
 }
-#[must_use = "retain entire rejected allocation owner and stopped original calloc"]
+#[must_use]
 pub struct SourceCrtCallocAllocationError<A, P, S, R> {
     pub actual: SourceCrtCallocAllocationCapsule<A, P, S, R>,
     pub pending: SourceCrtQueryCallocProgress,

@@ -129,7 +129,7 @@ pub struct Progress<I> {
     pub normal:Option<Normal<I>>,
     pub helper_progress:Option<sample::helper::Progress<I>>,
 }
-#[must_use = "all native/call/partial sample packets stay in original Frame/error; no retry"]
+#[must_use]
 pub struct Failure<I,R,O,E> {
     pub progress:Progress<I>,pub cause:Cause<E>,pub sample_normal:Option<sample::NormalReturn<I,R,O>>,
     pub sample_return:Option<sample::Returned<I,R>>,pub sample_output:Option<sample::Output<I,O>>,
@@ -137,7 +137,7 @@ pub struct Failure<I,R,O,E> {
 }
 #[must_use]
 pub struct Completed<I> {pub progress:Progress<I>,pub normal:Normal<I>}
-#[must_use = "genuine B bulk remains IN FLIGHT, no native RET/caller restoration"]
+#[must_use]
 pub struct RequiredBody<I> {pub progress:Progress<I>,pub next_rva:u32}
 #[must_use]
 pub enum BodyOutcome<I> {Returned(Completed<I>),Required(RequiredBody<I>)}

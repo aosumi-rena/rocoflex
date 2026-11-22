@@ -1,6 +1,6 @@
 use super::*;
 
-#[must_use = "retain checked entry/source/provider binding history with existing body owner"]
+#[must_use]
 pub struct SourceCrtReplaceRetirementTransferHistory<D, P, S, W, E> {
     pub from: SourceCrtReplaceRetirementPosition,
     pub to: SourceCrtReplaceRetirementPosition,
@@ -17,7 +17,7 @@ pub struct SourceCrtReplaceRetirementTransferObservation {
     pub child_prefix: SourceCrtNativeRetFrame, pub current_prefix: SourceCrtNativeRetFrame,
     pub actual_saved_registers: [u64; 4],
 }
-#[must_use = "retain original or advanced retirement progress and every actual owner on failed transfer"]
+#[must_use]
 pub enum SourceCrtReplaceRetirementTransferFailure<D, B, P, S, H, W, E, N> {
     Required {
         original: SourceCrtReplaceRetirementRequired<D, P, S, H, W, E, N>,

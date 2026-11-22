@@ -16,7 +16,7 @@ pub enum SourceFinitePhaseWordZeroError {
 impl SourceFinitePhaseWordZeroError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::NonFiniteInput { .. } => "CPU0 finite F64 phase requires its separately owned nonfinite helper continuation",
+            Self::NonFiniteInput { .. } => "Nonfinite phase input",
             Self::Short(error) => error.reason(),
             Self::Moderate(error) => error.reason(),
             Self::Large(error) => error.reason(),

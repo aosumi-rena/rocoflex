@@ -238,12 +238,12 @@ pub unsafe extern "C" fn roco_plugin_prepare(handle:*mut RocoPlugin,
         if multithread>1 {return Err(invalid("Invalid per-instance multithread preference."));}
         if input_channel>1 {return Err(invalid("Input channel must be left or right."));}
         let (analysis,synthesis,legacy)=crate::model_preferences::configured_models().map_err(failed)?;
+        let profile=crate::prepare_quality::PrepareProfile::try_from(profile)
+            .map_err(|error|Failure(NOT_READY,error))?;
         let processor=if legacy {
             PluginProcessor::with_legacy_vocoder(&analysis,&synthesis,&plugin.bus,
-                sample_rate,max_block_frames as usize,latency_policy,multithread!=0)
+                sample_rate,max_block_frames as usize,profile,latency_policy,multithread!=0)
         } else {
-            let profile=crate::prepare_quality::PrepareProfile::try_from(profile)
-                .map_err(|error|Failure(NOT_READY,error))?;
             PluginProcessor::with_instance_policy(&analysis,&synthesis,&plugin.bus,
                 sample_rate,max_block_frames as usize,profile,latency_policy,multithread!=0)
         }.map_err(failed)?;

@@ -21,7 +21,7 @@ pub struct SourceCrtCachedNativeRetBindings<O, T> {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceCrtCachedNativeRetBindReason { ActualCallBindingRequired, ActualEpilogueRequired }
-#[must_use = "retain original resolver/module/cache/FP/frame resources and actual target record"]
+#[must_use]
 pub struct SourceCrtCachedNativeRetBindFailure<O, T> {
     pub owner: O,
     pub target_owner: T,
@@ -31,7 +31,7 @@ pub struct SourceCrtCachedNativeRetBindFailure<O, T> {
     pub expected: SourceCrtNativeRetExpectation,
     pub actual_frame: SourceCrtNativeRetFrame,
 }
-#[must_use = "retain SAME resolver/module/cache/native/FP/frame resources and actual RET"]
+#[must_use]
 pub struct SourceCrtCachedResolverReturned<O, T, N> {
     pub owner: O,
     pub target_owner: T,
@@ -51,7 +51,7 @@ pub struct SourceCrtCachedNativeRetParts<O, T> {
     pub current_frame: fn(&O) -> SourceCrtNativeRetFrame,
 }
 
-#[must_use = "retain SAME cached-resolver/native-resource return continuation"]
+#[must_use]
 pub struct SourceCrtCachedResolverNativeRet<O, T> {
     owner: O,
     target_owner: T,

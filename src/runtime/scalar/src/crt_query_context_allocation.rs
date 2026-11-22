@@ -20,7 +20,7 @@ pub struct SourceCrtContextAllocationCallBindings<P, S, E> {
     pub actual_entry: fn(&E) -> SourceCrtContextAllocationCallEntry,
     pub owned_entry: fn(&P, &S) -> Option<SourceCrtContextAllocationCallEntry>,
 }
-#[must_use = "retain original stopped parent/history/entry authority while SAME P/S belong to child"]
+#[must_use]
 pub struct SourceCrtContextAllocationParent<P, S, H, E> {
     parent: Option<SourceCrtQueryContext58db7c>, history: H,
     bindings: SourceCrtQueryOwnedBindings<P, S>, actual_entry: E,
@@ -33,11 +33,11 @@ impl<P, S, H, E> SourceCrtContextAllocationParent<P, S, H, E> {
     pub fn source_call(&self) -> SourceCrtQueryCallEnvelope { self.entry.call }
     pub fn required_target(&self) -> u64 { self.expected.required_actual_resume }
 }
-#[must_use = "retain both original parent and SAME child/provider/advanced history"]
+#[must_use]
 pub struct SourceCrtContextAllocationChild<P, S, H, CH, E> {
     child: SourceCrtQueryOwned<P, S, CH>, parent: SourceCrtContextAllocationParent<P, S, H, E>,
 }
-#[must_use = "retain all rejected handoff inputs with original parent stopped"]
+#[must_use]
 pub struct SourceCrtContextAllocationHoldFailure<P, S, H, CH, E> {
     pub parent: SourceCrtQueryOwned<P, S, H>, pub child: SourceCrtQueryCalloc58f074, pub child_history: CH,
     pub actual_entry: E, pub entry_bindings: SourceCrtContextAllocationCallBindings<P, S, E>,

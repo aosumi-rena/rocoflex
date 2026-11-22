@@ -31,11 +31,11 @@ pub enum SourceRawCvttError {
 impl SourceRawCvttError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed { .. } => "raw CVTT requires explicit IntelSdm arithmetic admission",
-            Self::CapabilityMaskRequired { .. } => "explicit effective MXCSR support bitset is outside admitted capability domain",
-            Self::ReservedMxcsrBits { .. } => "raw MXCSR contains unsupported architectural reserved bits",
-            Self::UnsupportedMxcsrBits { .. } => "raw MXCSR sets bits outside the explicitly supplied capability bitset",
-            Self::CoreStatusRequired { .. } => "CVTT candidate status is outside the closed invalid-or-precision policy",
+            Self::ArchitectureNotClosed { .. } => "Unsupported truncation architecture",
+            Self::CapabilityMaskRequired { .. } => "Invalid floating-point capability mask",
+            Self::ReservedMxcsrBits { .. } => "Floating-point controls contain reserved bits",
+            Self::UnsupportedMxcsrBits { .. } => "Requested floating-point controls exceed available capabilities",
+            Self::CoreStatusRequired { .. } => "Unsupported truncation status",
         }
     }
 

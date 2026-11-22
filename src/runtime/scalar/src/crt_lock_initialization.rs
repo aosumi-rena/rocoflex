@@ -87,13 +87,13 @@ pub enum SourceCrtLockError {
 impl SourceCrtLockError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ReceiptBindingRequired { .. } => "58d8a0/58d8d4 actual native/count receipt does not match pending source operation",
-            Self::ActualNonvolatileContinuationRequired { .. } => "58d8d4 actual delete return changed source local RBX loop index",
-            Self::NativeSourceCompletionRequired { .. } => "58d8a0 initialization has an outstanding source thunk; matching source and actual return are required together",
+            Self::ReceiptBindingRequired { .. } => "Unexpected lock initialization result",
+            Self::ActualNonvolatileContinuationRequired { .. } => "Lock cleanup changed the loop index",
+            Self::NativeSourceCompletionRequired { .. } => "Lock initialization is waiting for a callback",
         }
     }
 }
-#[must_use = "retain actual lock resources and advanced full state with the source cursor"]
+#[must_use]
 pub struct SourceCrtLockServiceFailure<E> {
     pub cause: E,
     pub pending: SourceCrtLockRequest,
@@ -119,7 +119,7 @@ pub struct SourceCrtLockThunkBeginError {
 }
 impl SourceCrtLockThunkBeginError {
     pub fn reason(&self) -> &'static str {
-        "lock thunk handoff requires an unfailed pending59bd0c call and exact supplied source array/count addresses"
+        "Invalid lock callback arguments"
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,7 +133,7 @@ impl SourceCrtLockThunkCompletionError {
     pub fn reason(&self) -> &'static str {
         match self.continuation {
             Some(error) => error.reason(),
-            None => "lock initialization thunk and actual return differ from the outstanding source call/base/resume/value",
+            None => "Unexpected lock callback result",
         }
     }
 }

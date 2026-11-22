@@ -23,9 +23,9 @@ pub enum SourceRawF64SelectionError {
 impl SourceRawF64SelectionError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ControlRequired { .. } => "MINSD/CMPLTSD requires explicit Intel/MXCSR/effective capabilities",
-            Self::CoreStatusRequired { .. } => "MINSD/CMPLTSD status is outside invalid-or-denormal policy",
-            Self::NaNForwardDazRequired { .. } => "MINSD first-NaN/second-subnormal forwarding under DAZ requires separate authority",
+            Self::ControlRequired { .. } => "Unsupported double comparison mode",
+            Self::CoreStatusRequired { .. } => "Unsupported comparison result status",
+            Self::NaNForwardDazRequired { .. } => "Unsupported minimum for NaN and a flushed subnormal",
         }
     }
     pub fn known_advanced_mxcsr(self, entry: u32) -> u32 {

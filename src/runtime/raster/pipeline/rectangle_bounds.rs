@@ -60,7 +60,7 @@ impl Progress {
 #[derive(Debug)]
 pub struct NumericFailure<E> {pub request:Request,pub error:E}
 #[derive(Debug)]
-#[must_use="retain numeric prefix and SAME advanced service; no retry or HOST fallback"]
+#[must_use]
 pub struct Failure<E> {pub progress:Progress,pub failure:NumericFailure<E>}
 #[derive(Clone,Copy,Debug)]
 pub struct CornersCompleted {pub words:[u32;4],pub progress:Progress}

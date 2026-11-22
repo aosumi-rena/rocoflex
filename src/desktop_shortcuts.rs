@@ -1,4 +1,3 @@
-//! User-owned shortcut assignments. Activation is admitted once per raw input batch.
 use super::*;
 use serde::{Deserialize, Serialize};
 
@@ -146,7 +145,6 @@ impl DesktopApp {
                 if binding.replace(value).is_some() { ambiguous = true; }
             }
         }
-        // Still apply all release edges, but never guess between multiple downs.
         if ambiguous { return; }
         let Some(binding) = binding else { return; };
         if role == 2 {

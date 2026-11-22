@@ -10,7 +10,7 @@ pub enum Mask16Phase { RingAndOrigin, Produce, Sort, Composite, Complete }
 #[derive(Clone, Copy, Debug)]
 pub struct Mask16Progress { pub next_ordinal: usize, pub phase: Mask16Phase }
 
-#[must_use = "keep partial mask, input borrows and SAME math owner until completion or stopped failure"]
+#[must_use]
 pub struct Mask16Renderer<'p, 's, 'm, M: MathServices> {
     rect: [i32; 4],
     probe: [f32; 2],
@@ -22,7 +22,7 @@ pub struct Mask16Renderer<'p, 's, 'm, M: MathServices> {
     progress: Mask16Progress,
     stopped: Option<MaskFailure>,
 }
-#[must_use = "this is a completed mask only, not a published image or native return"]
+#[must_use]
 pub struct Mask16Completed<'m, M: MathServices> { mask: Mask, math: &'m mut M }
 impl<'m, M: MathServices> Mask16Completed<'m, M> {
     pub fn mask(&self) -> &Mask { &self.mask }

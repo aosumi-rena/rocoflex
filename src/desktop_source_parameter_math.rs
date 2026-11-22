@@ -55,7 +55,7 @@ pub(super) struct Last {
     pub result: Option<Value>,
 }
 
-#[must_use = "retain arithmetic/call failure prefixes and the caller's actual context"]
+#[must_use]
 pub(super) struct Math {
     scalar: SourceScalarF32,
     state: ExplicitExceptionState,

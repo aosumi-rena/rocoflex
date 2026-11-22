@@ -1,6 +1,4 @@
-﻿//! Experimental 3D geometry. Pure math; never mutates preset coordinates.
-
-pub type V3 = [f64; 3];
+﻿pub type V3 = [f64; 3];
 fn dot4(a: [f64; 4], b: [f64; 4]) -> f64 { (0..4).map(|i| a[i] * b[i]).sum() }
 fn norm4(a: [f64; 4]) -> f64 { dot4(a, a).sqrt() }
 fn remove(mut a: [f64; 4], b: [f64; 4]) -> [f64; 4] {
@@ -14,12 +12,7 @@ pub fn add(a: V3, b: V3) -> V3 { std::array::from_fn(|i| a[i]+b[i]) }
 pub fn sub(a: V3, b: V3) -> V3 { std::array::from_fn(|i| a[i]-b[i]) }
 pub fn mul(a: V3, s: f64) -> V3 { a.map(|x| x*s) }
 
-/// Reuse an accepted 4D orientation and project it into the complement of
-/// the working 2D basis. On first use, choose a dominant residual eigenspace;
-/// near-ties select the first usable canonical direction in that eigenspace.
-/// Retaining the anchor prevents PCA sign and tie flips during layout updates.
-/// A vanished anchor is replaced only when the current data has real residual
-/// variance. Zero residual variance stays flat; no dimension is fabricated.
+// Retain the depth axis across layout updates to avoid PCA sign flips.
 pub fn depth(rows: &[[f32;4]], basis: [f32;8], anchor: Option<[f64;4]>)
     -> Result<(Vec<f64>, bool, Option<[f64;4]>), &'static str> {
     if anchor.is_some_and(|a| a.iter().any(|v| !v.is_finite()) || unit4(a).is_none()) {
@@ -108,7 +101,6 @@ fn spread_depth(values: &mut [f64]) {
     if high - low <= full_span * 1e-6 { (low, high) = (sorted[0], sorted[last]); }
     let span = high - low;
     if span == 0.0 { return; }
-    // Keep the central depth linear. Only the tails bend to fit the canvas.
     let mid = low + span * 0.5;
     for value in values {
         let z = (*value - mid) / span * (2.0 * CENTRAL);
@@ -136,8 +128,6 @@ impl ProbeTint {
     }
 }
 
-/// Gate out keys which were already held when navigation gained ownership.
-/// A fresh non-repeat down in the acquisition frame remains usable.
 #[derive(Default)]
 pub struct KeyGate { active: bool, blocked: u16 }
 impl KeyGate {
@@ -150,7 +140,6 @@ impl KeyGate {
     }
 }
 
-/// Resolve the initiating event, not modifiers observed later in its batch.
 #[derive(Clone,Copy,Debug)]
 pub struct SignEvent {pub bit:u16,pub increase:bool,pub ctrl:bool,pub shift:bool,pub alt:bool,pub mac_cmd:bool}
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
@@ -242,14 +231,10 @@ impl Camera {
     }
 }
 
-/// Screen-space line-axis drag: preserve the press position and initial probe.
-/// Reject axes nearly facing the camera rather than producing a huge jump.
 pub fn drag_axis(initial: V3, axis: usize, press: [f64;2], cursor: [f64;2], camera: Camera, size: [f64;2]) -> Option<V3> {
     let [a,b,_]=camera.axis_projection(initial,axis,size)?;
     let d=[b[0]-a[0],b[1]-a[1]]; let norm=d[0]*d[0]+d[1]*d[1];
     let lambda=((cursor[0]-press[0])*d[0]+(cursor[1]-press[1])*d[1])/norm;
-    // Invert perspective along the axis, rather than assuming pixels/world
-    // stay linear as depth changes. Reject the pole and the near plane.
     let dz=camera.forward()[axis]; let denominator=a[2]+0.1*dz-lambda*0.1*dz;
     if denominator.abs()<1e-10 {return None;}
     let t=lambda*0.1*a[2]/denominator;
@@ -259,13 +244,8 @@ pub fn drag_axis(initial: V3, axis: usize, press: [f64;2], cursor: [f64;2], came
 
 #[derive(Clone, Debug)]
 pub struct MixSource { pub trajectory: bool, pub enabled: bool, pub points: Vec<(V3,bool)> }
-/// Source strength depends on the nearest point on its geometry, not how
-/// many segments describe it. Within each trajectory, nearby segment
-/// projections receive smooth weights to avoid jumps at self-intersections.
-/// Projection and weights remain f64 until the controller ABI boundary.
 pub fn weights(sources: &[MixSource], probe: V3, radius: f64) -> Result<Vec<Vec<f64>>, &'static str> {
     if probe.iter().any(|x| !x.is_finite()) || !radius.is_finite() || radius<=0.0 {return Err("Invalid 3D probe");}
-    // (point a, point b, interpolation, squared distance)
     let mut owners:Vec<(usize,Vec<(usize,usize,f64,f64)>,f64)>=Vec::new();
     for (owner,source) in sources.iter().enumerate() {
         if !source.enabled {continue;} let mut candidates=Vec::new();

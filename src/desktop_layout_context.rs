@@ -62,7 +62,7 @@ pub struct OwnedRefusal {
 pub struct SourceRefusal { pub source: Source, pub error: Error }
 pub struct RejectedContext { pub context: GeometryContext, pub error: Error }
 
-#[must_use = "Retain the candidate and accepted document through context/probe failure."]
+#[must_use]
 pub struct PreparedContextController {
     candidate: ContextController, phase: Phase, work: Work, suffix: Suffix,
     changed: bool, request: Option<ContextRequest>, issue: Option<Error>, provider_attempted: bool,

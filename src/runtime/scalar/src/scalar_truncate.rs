@@ -43,8 +43,8 @@ pub enum SourceScalarTruncationError {
 impl SourceScalarTruncationError {
     pub fn reason(self) -> &'static str {
         match self {
-            Self::ArchitectureNotClosed { .. } => "scalar CVTT requires explicit IntelSdm arithmetic admission",
-            Self::UnsupportedEnvironment { .. } => "scalar CVTT requires explicit RNE/allmasked/gradual controls",
+            Self::ArchitectureNotClosed { .. } => "Unsupported truncation architecture",
+            Self::UnsupportedEnvironment { .. } => "Unsupported floating-point controls",
         }
     }
     pub fn known_advanced_state(self, _entry: ExplicitExceptionState) -> ExplicitExceptionState {
